@@ -1148,6 +1148,14 @@
             }
           </p>
 
+          <!-- AI-POWERED EXECUTIVE SUMMARY (GEMINI 4 HYDROGEN · SERVER-SIDE) -->
+          <app-executive-summary-card
+            [summary]="audit.executiveSummary()"
+            [isLoading]="audit.isGeneratingExecutiveSummary()"
+            [errorMessage]="audit.executiveSummaryError()"
+            (regenerate)="audit.generateExecutiveSummary(true)"
+          />
+
           <!-- CATEGORIES IMPROVED WITH CODE (NO NUMERIC SCORES) -->
           @if (categoriesImprovedList().length > 0) {
             <div class="categories-improved-strip" aria-label="Categories improved with code">
@@ -3016,6 +3024,7 @@
   [loadingAuditId]="loadingDrawerAuditId()"
   [offlineReady]="pwaOffline.isOfflineReady()"
   [isOnline]="pwaOffline.isOnline()"
+  [storageBackend]="localAuditStorage.storageBackend()"
   (closeDrawer)="fbAuth.isHistoryDrawerOpen.set(false)"
   (openSavedAudit)="onOpenSavedAudit($event)"
   (reAuditRepo)="onReAuditFromDashboard($event); fbAuth.isHistoryDrawerOpen.set(false)"

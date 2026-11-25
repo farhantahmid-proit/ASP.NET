@@ -381,3 +381,19 @@ export interface CachedRepositoryAuditEntry {
   session: AuditSession;
 }
 
+export interface ExecutiveSummaryImprovement {
+  category: string;
+  title: string;
+  impact: string;
+}
+
+export interface ExecutiveSummaryResult {
+  headline: string;
+  summary: string;
+  topImprovements: ExecutiveSummaryImprovement[];
+  recommendedNextStep: string;
+  model: string;
+  generatedAtIso: string;
+}
+
+

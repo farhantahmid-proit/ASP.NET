@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import {
   AuditCommit,
   AuditImpactMetrics,
@@ -10,9 +10,18 @@ import {
   LocalSavedAuditRecord,
   SavedAuditHistoryRecord
 } from '../models/audit.model';
+import { IndexedDbAuditStoreService } from './indexed-db-audit-store.service';
 
 export const LOCAL_SAVED_AUDITS_STORAGE_KEY = 'fresnel_local_saved_audits_v1';
-const MAX_LOCAL_AUDITS = 20;
+const MAX_LOCAL_AUDITS = 50;
+
+function resolveIndexedDbStore(): IndexedDbAuditStoreService {
+  try {
+    return inject(IndexedDbAuditStoreService);
+  } catch {
+    return new IndexedDbAuditStoreService();
+  }
+}
 
 function sanitizeSlug(raw: string, fallback = 'repository'): string {
   const cleaned = String(raw || '')
@@ -1059,13 +1068,78 @@ export function parseLocalAuditFile(
   providedIn: 'root'
 })
 export class LocalAuditStorageService {
+  private readonly idbStore = resolveIndexedDbStore();
+
   readonly localAudits = signal<LocalSavedAuditRecord[]>([]);
   readonly preferredFormat = signal<LocalAuditFormat>('json');
   readonly localNotice = signal<string | null>(null);
+  readonly storageBackend = signal<'indexeddb' | 'localstorage'>(
+    this.idbStore.isSupported() ? 'indexeddb' : 'localstorage'
+  );
+  readonly isIndexedDbReady = signal<boolean>(false);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  private hydrationPromise: Promise<LocalSavedAuditRecord[]> | null = null;
 
   constructor() {
     this.localAudits.set(this.readFromStorage());
+  }
+
+  /**
+   * Hydrates Saved Audits from IndexedDB (`fresnel_audits_db`), migrating any
+   * pre-existing localStorage records on first run so full snapshots persist offline.
+   */
+  async hydrateFromIndexedDb(): Promise<LocalSavedAuditRecord[]> {
+    if (this.hydrationPromise) {
+      return this.hydrationPromise;
+    }
+
+    this.hydrationPromise = (async () => {
+      if (!this.idbStore.isSupported()) {
+        this.storageBackend.set('localstorage');
+        return this.localAudits();
+      }
+
+      const idbRecords = await this.idbStore.getAllAudits();
+      const current = this.localAudits();
+
+      if (idbRecords.length > 0) {
+        const merged = new Map<string, LocalSavedAuditRecord>();
+        for (const rec of current) {
+          merged.set(rec.auditId, rec);
+        }
+        for (const idbRec of idbRecords) {
+          const existing = merged.get(idbRec.auditId);
+          if (!existing || idbRec.snapshotSession || !existing.snapshotSession) {
+            merged.set(idbRec.auditId, idbRec);
+          }
+        }
+        const combined = Array.from(merged.values())
+          .sort((a, b) => {
+            const tA = new Date(a.updatedAtIso || a.createdAtIso || 0).getTime();
+            const tB = new Date(b.updatedAtIso || b.createdAtIso || 0).getTime();
+            return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0);
+          })
+          .slice(0, MAX_LOCAL_AUDITS);
+
+        this.localAudits.set(combined);
+        this.writeToLocalStorageFallback(combined);
+        if (combined.length > idbRecords.length) {
+          await this.idbStore.replaceAllAudits(combined);
+        }
+        this.storageBackend.set('indexeddb');
+        this.isIndexedDbReady.set(true);
+        return combined;
+      }
+
+      if (current.length > 0) {
+        await this.idbStore.replaceAllAudits(current);
+      }
+      this.storageBackend.set('indexeddb');
+      this.isIndexedDbReady.set(true);
+      return this.localAudits();
+    })();
+
+    return this.hydrationPromise;
   }
 
   private readFromStorage(): LocalSavedAuditRecord[] {
@@ -1092,14 +1166,14 @@ export class LocalAuditStorageService {
     }
   }
 
-  private writeToStorage(records: LocalSavedAuditRecord[]): void {
+  private writeToLocalStorageFallback(records: LocalSavedAuditRecord[]): void {
     try {
       if (typeof localStorage === 'undefined') return;
       const trimmed = records.slice(0, MAX_LOCAL_AUDITS);
       try {
         localStorage.setItem(LOCAL_SAVED_AUDITS_STORAGE_KEY, JSON.stringify(trimmed));
       } catch {
-        // Fallback: drop verbose diffs on older snapshots if storage quota is tight
+        // Fallback: drop verbose diffs on older snapshots if localStorage quota is tight
         const compact = trimmed.map((rec, idx) =>
           idx === 0
             ? rec
@@ -1112,6 +1186,19 @@ export class LocalAuditStorageService {
       }
     } catch {
       // Non-fatal if storage is disabled
+    }
+  }
+
+  private writeToStorage(records: LocalSavedAuditRecord[]): void {
+    const trimmed = records.slice(0, MAX_LOCAL_AUDITS);
+    this.writeToLocalStorageFallback(trimmed);
+    if (this.idbStore.isSupported()) {
+      void this.idbStore.replaceAllAudits(trimmed).then((ok) => {
+        if (ok) {
+          this.storageBackend.set('indexeddb');
+          this.isIndexedDbReady.set(true);
+        }
+      });
     }
   }
 
@@ -1136,8 +1223,9 @@ export class LocalAuditStorageService {
     const activeFormat = format ?? this.preferredFormat();
     const record = buildLocalSavedAuditRecord(session, impact, selectedCommits, activeFormat);
     this.upsertRecord(record);
+    const storeLabel = this.idbStore.isSupported() ? 'IndexedDB' : 'local storage';
     this.showNotice(
-      `Saved ${record.repoFullName} locally (${activeFormat.toUpperCase()} snapshot).`
+      `Saved ${record.repoFullName} to ${storeLabel} (${activeFormat.toUpperCase()} snapshot).`
     );
     return record;
   }
@@ -1147,7 +1235,15 @@ export class LocalAuditStorageService {
     const filtered = current.filter((r) => r.auditId !== record.auditId);
     const next = [record, ...filtered].slice(0, MAX_LOCAL_AUDITS);
     this.localAudits.set(next);
-    this.writeToStorage(next);
+    this.writeToLocalStorageFallback(next);
+    if (this.idbStore.isSupported()) {
+      void this.idbStore.putAudit(record).then((ok) => {
+        if (ok) {
+          this.storageBackend.set('indexeddb');
+          this.isIndexedDbReady.set(true);
+        }
+      });
+    }
   }
 
   replaceAllLocalAudits(records: LocalSavedAuditRecord[]): void {
@@ -1180,7 +1276,10 @@ export class LocalAuditStorageService {
   deleteLocalAudit(auditId: string): void {
     const next = this.localAudits().filter((r) => r.auditId !== auditId);
     this.localAudits.set(next);
-    this.writeToStorage(next);
+    this.writeToLocalStorageFallback(next);
+    if (this.idbStore.isSupported()) {
+      void this.idbStore.deleteAudit(auditId);
+    }
   }
 
   exportConsolidatedHistoryPayload(

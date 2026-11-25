@@ -31,6 +31,7 @@ import {
   PwaInstallButtonComponent,
   PwaOfflineBannerComponent
 } from './components/pwa-install-banner/pwa-install-banner.component';
+import { ExecutiveSummaryCardComponent } from './components/executive-summary-card/executive-summary-card.component';
 import {
   CachedRepositoryAuditEntry,
   GitHubRepoIssue,
@@ -63,7 +64,8 @@ export interface CategoryTabItem {
     GitPushFailureModalComponent,
     GoogleIdentityButtonComponent,
     PwaInstallButtonComponent,
-    PwaOfflineBannerComponent
+    PwaOfflineBannerComponent,
+    ExecutiveSummaryCardComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
@@ -123,11 +125,7 @@ export class AppComponent {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      if (this.localAuditStorage.localAudits().length === 0) {
-        void this.hydrateOrSeedSavedAudits();
-      } else {
-        this.localAuditStorage.seedSampleAuditsIfEmpty();
-      }
+      void this.hydrateOrSeedSavedAudits();
     }
 
     // Mirror saved audits into Workbox Cache Storage whenever history changes for zero-network offline viewing
@@ -156,9 +154,12 @@ export class AppComponent {
   }
 
   private async hydrateOrSeedSavedAudits(): Promise<void> {
-    const cached = await this.pwaOffline.readCachedAuditsFromOfflineCache();
-    if (cached.length > 0) {
-      this.localAuditStorage.replaceAllLocalAudits(cached);
+    const idbRecords = await this.localAuditStorage.hydrateFromIndexedDb();
+    if (idbRecords.length === 0) {
+      const cached = await this.pwaOffline.readCachedAuditsFromOfflineCache();
+      if (cached.length > 0) {
+        this.localAuditStorage.replaceAllLocalAudits(cached);
+      }
     }
     this.localAuditStorage.seedSampleAuditsIfEmpty();
   }

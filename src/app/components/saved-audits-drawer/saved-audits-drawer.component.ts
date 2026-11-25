@@ -363,7 +363,7 @@ export function filterSavedAuditRecords(
       <div class="saved-audits-drawer__header">
         <div class="saved-audits-drawer__heading">
           <p class="saved-audits-drawer__kicker">
-            <span>Local JSON · TOON · Markdown</span>
+            <span>{{ storageBackend() === 'indexeddb' ? 'IndexedDB' : 'Local' }} · JSON · TOON · Markdown</span>
             @if (userSession().isAuthenticated) {
               <span aria-hidden="true">·</span>
               <span>Firestore Synced</span>
@@ -1134,6 +1134,7 @@ export class SavedAuditsDrawerComponent {
   readonly loadingAuditId = input<string | null>(null);
   readonly offlineReady = input<boolean>(false);
   readonly isOnline = input<boolean>(true);
+  readonly storageBackend = input<'indexeddb' | 'localstorage'>('indexeddb');
 
   readonly closeDrawer = output<void>();
   readonly openSavedAudit = output<SavedAuditHistoryRecord | LocalSavedAuditRecord>();

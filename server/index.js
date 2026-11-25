@@ -24,6 +24,7 @@ import {
   detectGithubSshReadiness,
   diagnoseGitRemotePush
 } from './oss-engine/ssh-diagnostics.js';
+import { generateAiExecutiveSummary } from './oss-engine/executive-summary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1277,6 +1278,53 @@ export async function handleFresnelApiRequest(req, res) {
     } catch (err) {
       sendJson(res, 502, {
         error: err?.message || 'Failed to retrieve open-source web standards references.'
+      });
+    }
+    return true;
+  }
+
+  // 13. POST /api/audit/executive-summary & POST /api/audit/:id/executive-summary
+  // Server-side @google/genai Executive Summary generation (keeps GEMINI_API_KEY strictly on server)
+  const execSummaryIdMatch = pathname.match(/^\/api\/audit\/([^/]+)\/executive-summary$/);
+  if (
+    req.method === 'POST' &&
+    (pathname === '/api/audit/executive-summary' || execSummaryIdMatch)
+  ) {
+    const body = await readJsonBody(req);
+    const clientId = resolveAuditClientId(req, url);
+    const sessionId = execSummaryIdMatch ? execSummaryIdMatch[1] : body?.sessionId;
+    const session = sessionId ? auditSessions.get(sessionId) : null;
+    const authorizedSession =
+      session && (!session.clientId || session.clientId === clientId) ? session : null;
+
+    if (!authorizedSession && (!body || (!body.repoFullName && !Array.isArray(body.commits)))) {
+      sendJson(res, 400, {
+        error: 'Audit session context or commit metrics are required to generate an Executive Summary.'
+      });
+      return true;
+    }
+
+    const summaryInput = {
+      repoFullName: body?.repoFullName || authorizedSession?.repo?.fullName || 'repository',
+      branch: body?.branch || authorizedSession?.branch || 'main',
+      runPhase: body?.runPhase || authorizedSession?.runPhase || 'static',
+      metrics:
+        body?.metrics ||
+        authorizedSession?.ossEngine?.deterministicMetrics ||
+        null,
+      commits:
+        Array.isArray(body?.commits) && body.commits.length > 0
+          ? body.commits
+          : authorizedSession?.commits || []
+    };
+
+    try {
+      const result = await generateAiExecutiveSummary(summaryInput);
+      sendJson(res, 200, result);
+    } catch (err) {
+      const status = Number(err?.statusCode) || 502;
+      sendJson(res, status, {
+        error: err?.message || 'Failed to generate AI Executive Summary.'
       });
     }
     return true;

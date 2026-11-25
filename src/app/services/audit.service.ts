@@ -16,6 +16,7 @@ import {
   AuditMode,
   AuditSession,
   CachedRepositoryAuditEntry,
+  ExecutiveSummaryResult,
   FlowStep,
   FresnelLore,
   GroundingResult,
@@ -28,7 +29,11 @@ import {
   ReportExportBundle,
   SavedAuditHistoryRecord
 } from '../models/audit.model';
-import { LocalAuditStorageService, buildDefaultSampleAudits } from './local-audit-storage.service';
+import {
+  LocalAuditStorageService,
+  buildDefaultSampleAudits,
+  buildSynthesizedSessionFromRecord
+} from './local-audit-storage.service';
 import { AuditResultCacheService, buildAuditCacheKey } from './audit-result-cache.service';
 import { CodeAnalysisWorker } from '../workers/code-analysis-worker';
 import { ImportedSourceFile } from '../workers/ast-analyzer.engine';
@@ -250,6 +255,12 @@ export class AuditService {
   readonly liveLighthouseAvailable = signal<boolean>(false);
   readonly isRunningLiveLighthouse = signal<boolean>(false);
   readonly liveLighthouseError = signal<string | null>(null);
+
+  readonly executiveSummary = signal<ExecutiveSummaryResult | null>(null);
+  readonly isGeneratingExecutiveSummary = signal<boolean>(false);
+  readonly executiveSummaryError = signal<string | null>(null);
+  private readonly executiveSummaryCache = new Map<string, ExecutiveSummaryResult>();
+  private execSummaryRequestSeq = 0;
 
   readonly allCommits = computed<AuditCommit[]>(() => this.session()?.commits ?? []);
 
@@ -1620,10 +1631,24 @@ export class AuditService {
       );
       this.transitionToStep(completed.runPhase === 'lhr' ? 7 : 3);
     } catch {
-      await this.startAudit(
-        record.repoUrl || `https://github.com/${record.repoFullName}`,
-        record.mode || 'live'
-      );
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const offlineSession = buildSynthesizedSessionFromRecord(record);
+        this.session.set(offlineSession);
+        this.prepareReportState(offlineSession);
+        this.transitionToStep(offlineSession.runPhase === 'lhr' ? 7 : 3);
+        return;
+      }
+      try {
+        await this.startAudit(
+          record.repoUrl || `https://github.com/${record.repoFullName}`,
+          record.mode || 'live'
+        );
+      } catch {
+        const fallbackSession = buildSynthesizedSessionFromRecord(record);
+        this.session.set(fallbackSession);
+        this.prepareReportState(fallbackSession);
+        this.transitionToStep(fallbackSession.runPhase === 'lhr' ? 7 : 3);
+      }
     }
   }
 
@@ -1638,6 +1663,93 @@ export class AuditService {
     }
     void this.refreshPatchBundle();
     void this.refreshExportBundle();
+    void this.generateExecutiveSummary();
+  }
+
+  async generateExecutiveSummary(forceRefresh = false): Promise<void> {
+    if (typeof window === 'undefined') return;
+    const current = this.session();
+    if (!current) return;
+
+    const cacheKey = `${current.id}:${current.runPhase}:${current.commits?.length ?? 0}`;
+    if (!forceRefresh) {
+      const cached = this.executiveSummaryCache.get(cacheKey);
+      if (cached) {
+        this.executiveSummary.set(cached);
+        this.executiveSummaryError.set(null);
+        this.isGeneratingExecutiveSummary.set(false);
+        return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      this.executiveSummary.set(null);
+      this.executiveSummaryError.set(
+        'Offline mode active — saved audit metrics remain viewable, and AI Executive Summary generation will resume when back online.'
+      );
+      this.isGeneratingExecutiveSummary.set(false);
+      return;
+    }
+
+    const requestSeq = ++this.execSummaryRequestSeq;
+    this.isGeneratingExecutiveSummary.set(true);
+    this.executiveSummaryError.set(null);
+
+    try {
+      const impact = this.impactMetrics();
+      const commitsPool =
+        this.selectedCommits().length > 0 ? this.selectedCommits() : current.commits || [];
+
+      const summaryResult = await firstValueFrom(
+        this.http.post<ExecutiveSummaryResult>(
+          '/api/audit/executive-summary',
+          {
+            sessionId: current.id,
+            repoFullName: current.repo?.fullName || 'repository',
+            branch: current.branch || 'main',
+            runPhase: current.runPhase || 'static',
+            metrics: {
+              performanceBefore: impact.performanceBefore,
+              performanceAfter: impact.performanceAfter,
+              accessibilityBefore: impact.accessibilityBefore,
+              accessibilityAfter: impact.accessibilityAfter,
+              bestPracticesBefore: impact.bestPracticesBefore,
+              bestPracticesAfter: impact.bestPracticesAfter,
+              seoBefore: impact.seoBefore,
+              seoAfter: impact.seoAfter,
+              securityBefore: impact.securityBefore,
+              securityAfter: impact.securityAfter
+            },
+            commits: commitsPool.slice(0, 18).map((c) => ({
+              category: c.category,
+              categoryLabel: c.categoryLabel,
+              title: c.title,
+              summary: c.summary,
+              ruleId: c.ruleId
+            }))
+          },
+          this.apiOptions()
+        )
+      );
+
+      if (requestSeq !== this.execSummaryRequestSeq) return;
+      this.executiveSummaryCache.set(cacheKey, summaryResult);
+      this.executiveSummary.set(summaryResult);
+      this.executiveSummaryError.set(null);
+    } catch (err: unknown) {
+      if (requestSeq !== this.execSummaryRequestSeq) return;
+      const errObj = err as { error?: { error?: string }; message?: string };
+      const msg =
+        errObj?.error?.error ||
+        errObj?.message ||
+        'Unable to generate AI Executive Summary right now.';
+      this.executiveSummary.set(null);
+      this.executiveSummaryError.set(msg);
+    } finally {
+      if (requestSeq === this.execSummaryRequestSeq) {
+        this.isGeneratingExecutiveSummary.set(false);
+      }
+    }
   }
 
   private syncActiveSelectionToCache(): void {
