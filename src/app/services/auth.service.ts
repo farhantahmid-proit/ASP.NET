@@ -7,19 +7,28 @@ import {
 import { FirebaseAuthService } from './firebase-auth.service';
 import { LocalAuditStorageService } from './local-audit-storage.service';
 
+export const ACCOUNT_PROFILE_CACHE_STORAGE_KEY = 'fresnel_account_profile_cache_v1';
+export const ACCOUNT_AUDIT_HISTORY_CACHE_STORAGE_KEY = 'fresnel_account_audit_history_cache_v1';
 export const GOOGLE_PROFILE_CACHE_STORAGE_KEY = 'fresnel_google_profile_cache_v1';
 export const GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY = 'fresnel_google_audit_history_cache_v1';
 export const GOOGLE_CLIENT_ID_STORAGE_KEY = 'fresnel_google_client_id';
 
-export interface CachedGoogleUserProfile {
+export type AuthProviderId = 'github.com' | 'google.com';
+
+export interface CachedAccountProfile {
   uid: string;
   displayName: string;
+  githubUsername: string | null;
   email: string | null;
   photoURL: string | null;
-  providerId: 'google.com';
+  providerId: AuthProviderId;
   authMode: 'gis' | 'firebase';
   cachedAtIso: string;
   expiresAtMs?: number | null;
+}
+
+export interface CachedGoogleUserProfile extends CachedAccountProfile {
+  providerId: 'google.com';
 }
 
 export interface DecodedGisJwtClaims {
@@ -91,19 +100,19 @@ export function decodeGisJwtPayload(credential: string): DecodedGisJwtClaims | n
   }
 }
 
-function readCachedGoogleProfile(): CachedGoogleUserProfile | null {
+function parseCachedProfileFromKey(storageKey: string): CachedAccountProfile | null {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
     return null;
   }
   try {
-    const raw = window.localStorage.getItem(GOOGLE_PROFILE_CACHE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<CachedGoogleUserProfile>;
+    const parsed = JSON.parse(raw) as Partial<CachedAccountProfile>;
     if (
       typeof parsed?.uid === 'string' &&
       parsed.uid.length > 0 &&
       typeof parsed?.displayName === 'string' &&
-      parsed.providerId === 'google.com'
+      (parsed.providerId === 'google.com' || parsed.providerId === 'github.com')
     ) {
       if (
         typeof parsed.expiresAtMs === 'number' &&
@@ -115,9 +124,10 @@ function readCachedGoogleProfile(): CachedGoogleUserProfile | null {
       return {
         uid: parsed.uid,
         displayName: parsed.displayName,
+        githubUsername: typeof parsed.githubUsername === 'string' ? parsed.githubUsername : null,
         email: typeof parsed.email === 'string' ? parsed.email : null,
         photoURL: isSafePhotoUrl(parsed.photoURL),
-        providerId: 'google.com',
+        providerId: parsed.providerId,
         authMode: parsed.authMode === 'gis' ? 'gis' : 'firebase',
         cachedAtIso:
           typeof parsed.cachedAtIso === 'string'
@@ -132,12 +142,19 @@ function readCachedGoogleProfile(): CachedGoogleUserProfile | null {
   }
 }
 
-function readCachedGoogleAuditHistory(): SavedAuditHistoryRecord[] {
+function readCachedAccountProfile(): CachedAccountProfile | null {
+  return (
+    parseCachedProfileFromKey(ACCOUNT_PROFILE_CACHE_STORAGE_KEY) ??
+    parseCachedProfileFromKey(GOOGLE_PROFILE_CACHE_STORAGE_KEY)
+  );
+}
+
+function readCachedHistoryFromKey(storageKey: string): SavedAuditHistoryRecord[] {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
     return [];
   }
   try {
-    const raw = window.localStorage.getItem(GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -153,6 +170,12 @@ function readCachedGoogleAuditHistory(): SavedAuditHistoryRecord[] {
   } catch {
     return [];
   }
+}
+
+function readCachedAccountAuditHistory(): SavedAuditHistoryRecord[] {
+  const unified = readCachedHistoryFromKey(ACCOUNT_AUDIT_HISTORY_CACHE_STORAGE_KEY);
+  if (unified.length > 0) return unified;
+  return readCachedHistoryFromKey(GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY);
 }
 
 function stripToHistoryRecord(
@@ -186,6 +209,11 @@ function stripToHistoryRecord(
   };
 }
 
+/**
+ * AuthService manages unified authentication state for both GitHub OAuth and
+ * Google Identity Services (GIS) user profiles, powering the topbar 'Account'
+ * dropdown with seamless LocalStorage synchronization for profiles and audit history.
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -194,10 +222,25 @@ export class AuthService {
   private readonly localAuditStorage = inject(LocalAuditStorageService);
 
   readonly isAccountMenuOpen = signal<boolean>(false);
-  readonly cachedGoogleProfile = signal<CachedGoogleUserProfile | null>(readCachedGoogleProfile());
-  readonly cachedGoogleAuditHistory = signal<SavedAuditHistoryRecord[]>(
-    readCachedGoogleAuditHistory()
+  readonly cachedAccountProfile = signal<CachedAccountProfile | null>(readCachedAccountProfile());
+  readonly cachedAccountAuditHistory = signal<SavedAuditHistoryRecord[]>(
+    readCachedAccountAuditHistory()
   );
+
+  /** Backward-compatible Google-scoped computed views */
+  readonly cachedGoogleProfile = computed<CachedGoogleUserProfile | null>(() => {
+    const profile = this.cachedAccountProfile();
+    return profile && profile.providerId === 'google.com'
+      ? (profile as CachedGoogleUserProfile)
+      : null;
+  });
+
+  readonly cachedGoogleAuditHistory = computed<SavedAuditHistoryRecord[]>(() =>
+    this.cachedAccountProfile()?.providerId === 'google.com'
+      ? this.cachedAccountAuditHistory()
+      : []
+  );
+
   readonly gisError = signal<string | null>(null);
   readonly isProcessingGis = signal<boolean>(false);
   readonly lastHistorySyncIso = signal<string | null>(null);
@@ -232,25 +275,27 @@ export class AuthService {
         isAuthReady: true,
         uid: gisProfile.uid,
         displayName: gisProfile.displayName,
+        githubUsername: null,
         photoURL: gisProfile.photoURL,
         providerId: 'google.com',
         profilePath: `users/${gisProfile.uid}`,
-        savedAuditsCount: this.cachedGoogleAuditHistory().length
+        savedAuditsCount: this.cachedAccountAuditHistory().length
       };
     }
 
-    // While Firebase Auth is still initializing on page refresh, hydrate cached Google profile smoothly
-    const cached = this.cachedGoogleProfile();
+    // While Firebase Auth is still initializing on page refresh, hydrate cached GitHub or Google profile smoothly
+    const cached = this.cachedAccountProfile();
     if (!live.isAuthReady && cached) {
       return {
         ...live,
         isAuthenticated: true,
         uid: cached.uid,
         displayName: cached.displayName,
+        githubUsername: cached.githubUsername,
         photoURL: cached.photoURL,
-        providerId: 'google.com',
+        providerId: cached.providerId,
         profilePath: `users/${cached.uid}`,
-        savedAuditsCount: this.cachedGoogleAuditHistory().length
+        savedAuditsCount: this.cachedAccountAuditHistory().length
       };
     }
     return live;
@@ -267,7 +312,7 @@ export class AuthService {
     () => this.gisError() ?? this.fbAuth.authError()
   );
 
-  readonly activeProvider = computed<'github.com' | 'google.com' | null>(
+  readonly activeProvider = computed<AuthProviderId | null>(
     () => this.userSession().providerId
   );
 
@@ -281,30 +326,35 @@ export class AuthService {
   });
 
   readonly displayName = computed<string>(() => {
-    return this.userSession().displayName || this.cachedGoogleProfile()?.displayName || 'Account';
+    return this.userSession().displayName || this.cachedAccountProfile()?.displayName || 'Account';
   });
 
   readonly userEmail = computed<string | null>(() => {
-    return this.fbAuth.currentUser()?.email ?? this.cachedGoogleProfile()?.email ?? null;
+    return this.fbAuth.currentUser()?.email ?? this.cachedAccountProfile()?.email ?? null;
   });
 
   readonly photoURL = computed<string | null>(() => {
-    return isSafePhotoUrl(this.userSession().photoURL ?? this.cachedGoogleProfile()?.photoURL);
+    return isSafePhotoUrl(this.userSession().photoURL ?? this.cachedAccountProfile()?.photoURL);
   });
 
+  readonly hasLocalProfileCache = computed<boolean>(() => this.cachedAccountProfile() !== null);
   readonly hasGoogleLocalCache = computed<boolean>(() => this.cachedGoogleProfile() !== null);
 
   /**
-   * Unified authenticated audit history: merges live Firestore audits with the
-   * LocalStorage-synced Google audit history so offline and GIS sessions stay in sync.
+   * Unified authenticated audit history for BOTH GitHub and Google accounts:
+   * merges live Firestore audits with the LocalStorage-synced account audit history.
    */
   readonly syncedAccountAudits = computed<SavedAuditHistoryRecord[]>(() => {
     const live = this.fbAuth.savedAudits();
-    if (this.activeProvider() !== 'google.com') {
+    const provider = this.activeProvider();
+    if (!provider) {
       return live;
     }
 
-    const cached = this.cachedGoogleAuditHistory();
+    const cached =
+      this.cachedAccountProfile()?.providerId === provider
+        ? this.cachedAccountAuditHistory()
+        : [];
     if (live.length === 0) {
       return cached;
     }
@@ -324,7 +374,7 @@ export class AuthService {
   });
 
   constructor() {
-    // Sync Firebase Google user profile & combined audit history into LocalStorage
+    // Seamlessly sync BOTH GitHub and Google user profiles & audit history with LocalStorage
     effect(() => {
       const user = this.fbAuth.currentUser();
       const session = this.fbAuth.userSession();
@@ -332,25 +382,35 @@ export class AuthService {
       const localAudits = this.localAuditStorage.localAudits();
       const gisProfile = this.activeGisProfile();
 
-      if (user && session.isAuthenticated && session.providerId === 'google.com') {
+      if (
+        user &&
+        session.isAuthenticated &&
+        (session.providerId === 'google.com' || session.providerId === 'github.com')
+      ) {
         const uid = session.uid || user.uid;
-        const profile: CachedGoogleUserProfile = {
+        const providerId: AuthProviderId = session.providerId;
+        const profile: CachedAccountProfile = {
           uid,
           displayName:
-            session.displayName || user.displayName || user.email?.split('@')[0] || 'Google User',
+            session.displayName ||
+            user.displayName ||
+            user.email?.split('@')[0] ||
+            (providerId === 'github.com' ? 'GitHub Developer' : 'Google User'),
+          githubUsername: providerId === 'github.com' ? session.githubUsername : null,
           email: user.email || null,
           photoURL: isSafePhotoUrl(user.photoURL),
-          providerId: 'google.com',
-          authMode: gisProfile ? 'gis' : 'firebase',
+          providerId,
+          authMode: providerId === 'google.com' && gisProfile ? 'gis' : 'firebase',
           cachedAtIso: new Date().toISOString(),
-          expiresAtMs: gisProfile?.expiresAtMs ?? null
+          expiresAtMs: providerId === 'google.com' ? (gisProfile?.expiresAtMs ?? null) : null
         };
-        this.persistGoogleProfile(profile);
-        this.syncAuditHistoryToLocalStorage([...liveAudits, ...localAudits], uid);
+        this.persistAccountProfile(profile);
+        this.syncAuditHistoryToLocalStorage([...liveAudits, ...localAudits], uid, providerId);
       } else if (gisProfile) {
         this.syncAuditHistoryToLocalStorage(
-          [...this.cachedGoogleAuditHistory(), ...localAudits],
-          gisProfile.uid
+          [...this.cachedAccountAuditHistory(), ...localAudits],
+          gisProfile.uid,
+          'google.com'
         );
       }
     });
@@ -409,6 +469,7 @@ export class AuthService {
       const profile: CachedGoogleUserProfile = {
         uid,
         displayName,
+        githubUsername: null,
         email: claims.email ?? null,
         photoURL: isSafePhotoUrl(claims.picture),
         providerId: 'google.com',
@@ -417,10 +478,11 @@ export class AuthService {
         expiresAtMs: claims.exp ? claims.exp * 1000 : Date.now() + 1000 * 60 * 60 * 12
       };
 
-      this.persistGoogleProfile(profile);
+      this.persistAccountProfile(profile);
       this.syncAuditHistoryToLocalStorage(
-        [...this.cachedGoogleAuditHistory(), ...this.localAuditStorage.localAudits()],
-        uid
+        [...this.cachedAccountAuditHistory(), ...this.localAuditStorage.localAudits()],
+        uid,
+        'google.com'
       );
 
       // Link into Firebase Auth when supported; client-side GIS session remains active even if offline
@@ -432,15 +494,18 @@ export class AuthService {
   }
 
   /**
-   * Deduplicates, normalizes, and persists the authenticated Google user's audit history
-   * to LocalStorage (`fresnel_google_audit_history_cache_v1`).
+   * Deduplicates, normalizes, and persists the authenticated user's audit history
+   * (GitHub or Google) to LocalStorage.
    */
   syncAuditHistoryToLocalStorage(
     records: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[],
-    ownerId?: string
+    ownerId?: string,
+    providerId?: AuthProviderId
   ): void {
     const resolvedOwner =
-      ownerId || this.userSession().uid || this.cachedGoogleProfile()?.uid || 'google_user';
+      ownerId || this.userSession().uid || this.cachedAccountProfile()?.uid || 'account_user';
+    const resolvedProvider =
+      providerId || this.activeProvider() || this.cachedAccountProfile()?.providerId || 'google.com';
 
     const byId = new Map<string, SavedAuditHistoryRecord>();
     for (const rec of records) {
@@ -466,7 +531,7 @@ export class AuthService {
       })
       .slice(0, 50);
 
-    const prev = this.cachedGoogleAuditHistory();
+    const prev = this.cachedAccountAuditHistory();
     const unchanged =
       prev.length === sorted.length &&
       prev.every(
@@ -480,67 +545,88 @@ export class AuthService {
       return;
     }
 
-    this.persistGoogleAuditHistory(sorted);
+    this.persistAccountAuditHistory(sorted, resolvedProvider);
   }
 
-  private persistGoogleProfile(profile: CachedGoogleUserProfile): void {
-    const prev = this.cachedGoogleProfile();
+  private persistAccountProfile(profile: CachedAccountProfile): void {
+    const prev = this.cachedAccountProfile();
     if (
       prev &&
       prev.uid === profile.uid &&
       prev.displayName === profile.displayName &&
+      prev.githubUsername === profile.githubUsername &&
       prev.email === profile.email &&
       prev.photoURL === profile.photoURL &&
+      prev.providerId === profile.providerId &&
       prev.authMode === profile.authMode
     ) {
       return;
     }
 
-    this.cachedGoogleProfile.set(profile);
+    this.cachedAccountProfile.set(profile);
     if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
       return;
     }
     try {
-      window.localStorage.setItem(GOOGLE_PROFILE_CACHE_STORAGE_KEY, JSON.stringify(profile));
+      const serialized = JSON.stringify(profile);
+      window.localStorage.setItem(ACCOUNT_PROFILE_CACHE_STORAGE_KEY, serialized);
+      if (profile.providerId === 'google.com') {
+        window.localStorage.setItem(GOOGLE_PROFILE_CACHE_STORAGE_KEY, serialized);
+      } else {
+        window.localStorage.removeItem(GOOGLE_PROFILE_CACHE_STORAGE_KEY);
+      }
     } catch {
       // ignore storage quota errors
     }
   }
 
-  private persistGoogleAuditHistory(records: SavedAuditHistoryRecord[]): void {
+  private persistAccountAuditHistory(
+    records: SavedAuditHistoryRecord[],
+    providerId: AuthProviderId
+  ): void {
     const bounded = records.slice(0, 50);
-    this.cachedGoogleAuditHistory.set(bounded);
+    this.cachedAccountAuditHistory.set(bounded);
     this.lastHistorySyncIso.set(new Date().toISOString());
     if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
       return;
     }
-    try {
-      window.localStorage.setItem(GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY, JSON.stringify(bounded));
-    } catch {
+    const writeKey = (key: string, items: SavedAuditHistoryRecord[]) => {
       try {
-        window.localStorage.setItem(
-          GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY,
-          JSON.stringify(bounded.slice(0, 15))
-        );
+        window.localStorage.setItem(key, JSON.stringify(items));
       } catch {
-        // ignore storage quota errors
+        try {
+          window.localStorage.setItem(key, JSON.stringify(items.slice(0, 15)));
+        } catch {
+          // ignore storage quota errors
+        }
       }
+    };
+
+    writeKey(ACCOUNT_AUDIT_HISTORY_CACHE_STORAGE_KEY, bounded);
+    if (providerId === 'google.com') {
+      writeKey(GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY, bounded);
     }
   }
 
-  clearGoogleLocalCache(): void {
-    this.cachedGoogleProfile.set(null);
-    this.cachedGoogleAuditHistory.set([]);
+  clearAccountLocalCache(): void {
+    this.cachedAccountProfile.set(null);
+    this.cachedAccountAuditHistory.set([]);
     this.lastHistorySyncIso.set(null);
     if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
       return;
     }
     try {
+      window.localStorage.removeItem(ACCOUNT_PROFILE_CACHE_STORAGE_KEY);
+      window.localStorage.removeItem(ACCOUNT_AUDIT_HISTORY_CACHE_STORAGE_KEY);
       window.localStorage.removeItem(GOOGLE_PROFILE_CACHE_STORAGE_KEY);
       window.localStorage.removeItem(GOOGLE_AUDIT_HISTORY_CACHE_STORAGE_KEY);
     } catch {
       // ignore storage errors
     }
+  }
+
+  clearGoogleLocalCache(): void {
+    this.clearAccountLocalCache();
   }
 
   async loginWithGitHub(): Promise<void> {
@@ -558,7 +644,7 @@ export class AuthService {
   async logout(): Promise<void> {
     this.gisError.set(null);
     this.closeAccountMenu();
-    this.clearGoogleLocalCache();
+    this.clearAccountLocalCache();
 
     if (typeof window !== 'undefined') {
       const gsiWin = window as unknown as GisGlobalWindow;

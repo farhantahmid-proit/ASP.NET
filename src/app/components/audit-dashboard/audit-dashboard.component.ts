@@ -341,12 +341,13 @@ export function summarizeRecentRepositories(
         <div class="dashboard-header__actions">
           <button
             type="button"
-            id="dashboard-open-drawer-btn"
+            id="saved-audits-drawer-button"
             class="secondary-flow-btn dashboard-action-btn"
             aria-controls="saved-audits-drawer"
+            aria-describedby="saved-audits-drawer-tooltip"
             [attr.aria-expanded]="isDrawerOpen()"
-            [attr.aria-label]="'Open Saved Audits drawer (' + savedAudits().length + ' saved reports) to browse, filter, export, or restore your offline JSON, Markdown, and TOON audit history'"
-            title="Open the Saved Audits drawer to browse, filter, import, export, or restore your locally saved JSON, Markdown, and TOON audit reports"
+            [attr.aria-label]="'Open Saved Audits drawer to access local audit storage history (' + savedAudits().length + ' saved reports)'"
+            title="Open Saved Audits drawer to access your local audit storage history (JSON, Markdown, and TOON reports)"
             (click)="openDrawer.emit()"
           >
             <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
@@ -354,6 +355,9 @@ export function summarizeRecentRepositories(
             </svg>
             <span>Saved Audits ({{ savedAudits().length }})</span>
           </button>
+          <span id="saved-audits-drawer-tooltip" role="tooltip" class="sr-only">
+            Opens the Saved Audits drawer to access, search, filter, import, export, or restore your local audit storage history stored in IndexedDB, LocalStorage, and local JSON, Markdown, or TOON files.
+          </span>
           <label
             class="secondary-flow-btn dashboard-action-btn saved-audits-import-label"
             title="Load a local saved audit file (.toon, .json, or .md)"

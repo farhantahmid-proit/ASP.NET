@@ -96,7 +96,7 @@ interface GoogleIdentityWindow {
               d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.12.96 5.96l3 2.33c.71-2.13 2.7-3.71 5.04-3.71z"
             />
           </svg>
-          <span>{{ authService.isSigningIn() ? 'Signing in…' : 'Google Login' }}</span>
+          <span>{{ authService.isSigningIn() ? 'Signing in…' : 'Google Sign-in' }}</span>
         </button>
       }
     </div>

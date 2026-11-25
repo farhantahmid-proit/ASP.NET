@@ -38,8 +38,7 @@
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": [],
-            "outputMode": "server"
+            "scripts": []
           },
           "configurations": {
             "production": {

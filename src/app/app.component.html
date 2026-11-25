@@ -142,8 +142,8 @@
               </div>
               <div class="account-dropdown__meta-row">
                 <span class="account-dropdown__provider">{{ authService.providerLabel() }}</span>
-                @if (headerSession.providerId === 'google.com' && authService.hasGoogleLocalCache()) {
-                  <span class="account-dropdown__cache-note">Profile &amp; history cached locally</span>
+                @if (authService.hasLocalProfileCache()) {
+                  <span class="account-dropdown__cache-note">Profile &amp; history synced locally</span>
                 }
               </div>
             </div>

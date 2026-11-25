@@ -1,7 +1,8 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { GitHubSshDiagnosticStatus } from '../models/audit.model';
+import { AuditService } from './audit.service';
 
 export type GitPushRootCause =
   | 'ready'
@@ -211,10 +212,62 @@ export function parseAndValidateClientPushUrl(rawUrl: string): {
 })
 export class GitPushDiagnosticService {
   private readonly http = inject(HttpClient);
+  private readonly audit = inject(AuditService);
 
   readonly isRunning = signal<boolean>(false);
   readonly lastResult = signal<GitLsRemoteDiagnosticResult | null>(null);
   readonly diagnosticError = signal<string | null>(null);
+  readonly lastTriggeredModalReason = signal<string | null>(null);
+
+  readonly debuggingInstructions = computed<GitDiagnosticResolutionStep[]>(() => {
+    const res = this.lastResult();
+    return res?.resolutionSteps ?? [];
+  });
+
+  /**
+   * Executes a `git ls-remote` check against the target repository URL and,
+   * upon failure, automatically triggers the existing SSH troubleshooting modal
+   * populated with specific debugging instructions to resolve the
+   * "Request contains an invalid argument" push issue.
+   */
+  async verifyRemoteAndTriggerModalOnFailure(options: {
+    repoUrl: string;
+    protocol?: 'auto' | 'ssh' | 'https';
+    headBranch?: string;
+    githubToken?: string | null;
+    originalErrorText?: string | null;
+    openModalEvenIfOk?: boolean;
+  }): Promise<GitLsRemoteDiagnosticResult> {
+    const result = await this.runLsRemoteDiagnostic(options);
+
+    if (!result.ok) {
+      const baseError =
+        options.originalErrorText?.trim() ||
+        'Failed to push commit to GitHub: Request contains an invalid argument.';
+      const debugStepsSummary = result.resolutionSteps
+        .map((step, i) => `${i + 1}. ${step.title}: ${step.command}`)
+        .join('\n');
+      const enrichedError = [
+        baseError,
+        `git ls-remote check failed (${result.rootCause}): ${result.headline}`,
+        result.stderr ? `stderr: ${result.stderr}` : '',
+        debugStepsSummary ? `Debugging steps:\n${debugStepsSummary}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      this.lastTriggeredModalReason.set(result.rootCause);
+      this.audit.triggerPushFailure(enrichedError);
+    } else if (options.openModalEvenIfOk) {
+      this.lastTriggeredModalReason.set('ready');
+      const fallbackErr =
+        options.originalErrorText?.trim() ||
+        'Failed to push commit to GitHub: Request contains an invalid argument.';
+      this.audit.triggerPushFailure(fallbackErr);
+    }
+
+    return result;
+  }
 
   async runLsRemoteDiagnostic(options: {
     repoUrl: string;

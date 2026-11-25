@@ -13,6 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuditService } from './services/audit.service';
 import { AuthService } from './services/auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
+import { GitPushDiagnosticService } from './services/git-push-diagnostic.service';
 import { LocalAuditStorageService } from './services/local-audit-storage.service';
 import { StorageService } from './services/storage.service';
 import { FresnelLogoComponent } from './components/fresnel-logo/fresnel-logo.component';
@@ -71,6 +72,7 @@ export class AppComponent {
   readonly audit = inject(AuditService);
   readonly authService = inject(AuthService);
   readonly fbAuth = inject(FirebaseAuthService);
+  readonly gitPushDiagnostic = inject(GitPushDiagnosticService);
   readonly localAuditStorage = inject(LocalAuditStorageService);
   readonly storageService = inject(StorageService);
   readonly repoUrl = signal<string>('');
@@ -1077,28 +1079,58 @@ export class AppComponent {
   async onPushBranchClick(): Promise<void> {
     const pr = this.audit.prResult();
     const session = this.audit.session();
-    const repoUrl = pr?.repoUrl || session?.repo?.url || '';
+    const repoUrl = pr?.repoUrl || session?.repo?.url || this.repoUrl() || '';
     const branch =
       pr?.headBranch ||
       (session?.runPhase === 'lhr' ? 'fresnel/lhr-fixes' : 'fresnel/code-audit');
-    await this.audit.pushBranchToGithub(repoUrl, branch, this.fbAuth.githubAccessToken());
+    const token = this.fbAuth.githubAccessToken();
+
+    const diag = await this.gitPushDiagnostic.verifyRemoteAndTriggerModalOnFailure({
+      repoUrl,
+      headBranch: branch,
+      githubToken: token,
+      originalErrorText:
+        'Failed to push commit to GitHub: Request contains an invalid argument.'
+    });
+    if (!diag.ok) {
+      return;
+    }
+
+    await this.audit.pushBranchToGithub(repoUrl, branch, token);
   }
 
   async onRetryPushFromModal(): Promise<void> {
     const pr = this.audit.prResult();
     const session = this.audit.session();
-    const repoUrl = pr?.repoUrl || session?.repo?.url || '';
+    const repoUrl = pr?.repoUrl || session?.repo?.url || this.repoUrl() || '';
     const branch =
       pr?.headBranch ||
       (session?.runPhase === 'lhr' ? 'fresnel/lhr-fixes' : 'fresnel/code-audit');
     await this.audit.pushBranchToGithub(repoUrl, branch, this.fbAuth.githubAccessToken());
   }
 
-  onOpenPushTroubleshooter(customError?: string): void {
+  async onOpenPushTroubleshooter(customError?: string): Promise<void> {
+    const pr = this.audit.prResult();
+    const session = this.audit.session();
+    const repoUrl =
+      pr?.repoUrl ||
+      session?.repo?.url ||
+      this.repoUrl() ||
+      'https://github.com/fresnel-sandbox/lumina-web-app';
+    const branch =
+      pr?.headBranch ||
+      (session?.runPhase === 'lhr' ? 'fresnel/lhr-fixes' : 'fresnel/code-audit');
     const defaultErr =
       customError ||
       'Failed to push commit to GitHub: Request contains an invalid argument.';
-    this.audit.triggerPushFailure(defaultErr);
+
+    await this.gitPushDiagnostic.verifyRemoteAndTriggerModalOnFailure({
+      repoUrl,
+      headBranch: branch,
+      githubToken: this.fbAuth.githubAccessToken(),
+      originalErrorText: defaultErr,
+      openModalEvenIfOk: true
+    });
   }
 
   onLoadSampleAudits(): void {
