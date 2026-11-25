@@ -108,8 +108,19 @@ export interface PushFailureStepItem {
                 <strong>Fix for "Request contains an invalid argument"</strong>
               </div>
               <p class="push-failure-invalid-arg-box__desc">
-                This error occurs when GitHub rejects a push payload due to <strong>GitHub Secret Scanning Push Protection</strong> (e.g., demo API key strings), embedded <code>.git/</code> paths, large extensionless files, branch protection rules, or an expired Google AI Studio GitHub App grant.
+                This error occurs when GitHub rejects a push payload due to <strong>GitHub Secret Scanning Push Protection</strong> (e.g., demo API key strings), embedded <code>.git/</code> paths, large extensionless files, branch protection rules, missing SSH keys, incorrect permissions, or an invalid push URL.
               </p>
+              <div style="margin-bottom: 0.75rem;">
+                <button
+                  type="button"
+                  id="invalid-arg-run-ls-remote-btn"
+                  class="dashboard-inline-btn dashboard-inline-btn--primary"
+                  [disabled]="pushDiagnostic.isRunning()"
+                  (click)="onRunLsRemoteDiagnostic()"
+                >
+                  {{ pushDiagnostic.isRunning() ? 'Running git ls-remote…' : 'Diagnose Push URL, SSH Keys & Permissions (git ls-remote)' }}
+                </button>
+              </div>
               <div class="push-failure-invalid-arg-box__checklist">
                 <div class="checklist-item is-checked">
                   <span class="check-icon">✓</span>

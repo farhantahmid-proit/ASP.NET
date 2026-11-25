@@ -14,6 +14,7 @@ import { AuditService } from './services/audit.service';
 import { AuthService } from './services/auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { LocalAuditStorageService } from './services/local-audit-storage.service';
+import { StorageService } from './services/storage.service';
 import { FresnelLogoComponent } from './components/fresnel-logo/fresnel-logo.component';
 import { ImpactRadarChartComponent } from './components/impact-radar-chart/impact-radar-chart.component';
 import { RepoContextBarComponent } from './components/repo-context-bar/repo-context-bar.component';
@@ -69,6 +70,7 @@ export class AppComponent {
   readonly authService = inject(AuthService);
   readonly fbAuth = inject(FirebaseAuthService);
   readonly localAuditStorage = inject(LocalAuditStorageService);
+  readonly storageService = inject(StorageService);
   readonly repoUrl = signal<string>('');
   readonly drawerImportError = signal<string | null>(null);
   readonly copiedKey = signal<string | null>(null);
@@ -643,7 +645,7 @@ export class AppComponent {
   onImportLocalAuditFile(payload: { filename: string; content: string }): void {
     this.drawerImportError.set(null);
     try {
-      this.localAuditStorage.importAuditFile(payload.filename, payload.content);
+      this.storageService.readAuditFileContent(payload.filename, payload.content);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : 'Unable to parse the selected local audit file.';
@@ -651,20 +653,11 @@ export class AppComponent {
     }
   }
 
-  onExportSavedAuditRecord(payload: {
+  async onExportSavedAuditRecord(payload: {
     record: SavedAuditHistoryRecord | LocalSavedAuditRecord;
     format: LocalAuditFormat;
-  }): void {
-    const exported = this.localAuditStorage.exportRecordPayload(
-      payload.record,
-      payload.format
-    );
-    this.audit.triggerBrowserDownload(
-      exported.filename,
-      exported.content,
-      undefined,
-      exported.mimeType
-    );
+  }): Promise<void> {
+    await this.storageService.writeAuditFile(payload.record, payload.format);
   }
 
   async onDeleteSavedAuditRecord(

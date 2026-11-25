@@ -215,28 +215,7 @@
       </div>
     }
 
-    <!-- Slide-out Saved Audits Drawer Trigger -->
-    <button
-      type="button"
-      id="saved-audits-drawer-btn"
-      class="auth-pill-btn"
-      [class.is-active]="fbAuth.isHistoryDrawerOpen()"
-      [attr.aria-expanded]="fbAuth.isHistoryDrawerOpen()"
-      (click)="fbAuth.toggleHistoryDrawer()"
-      title="Open Saved Audits slide-out drawer (JSON / TOON / Markdown / Device files)"
-    >
-      <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-        <path d="M4.5 3.2h9a1.3 1.3 0 0 1 1.3 1.3v10.8l-5.8-3-5.8 3V4.5a1.3 1.3 0 0 1 1.3-1.3z" stroke-linejoin="round" />
-      </svg>
-      <span>
-        Saved Audits
-        @if (allSavedAudits().length > 0) {
-          ({{ allSavedAudits().length }})
-        }
-      </span>
-    </button>
-
-    <!-- Load Sample Audits Button (moved right after Saved Audits and before Git icon) -->
+    <!-- Load Sample Audits Button -->
     <button
       type="button"
       id="dashboard-load-samples-btn"
@@ -673,6 +652,7 @@
         [isSigningIn]="authService.isSigningIn()"
         [authError]="authService.authError()"
         [localNotice]="localAuditStorage.localNotice() || drawerImportError()"
+        [isDrawerOpen]="fbAuth.isHistoryDrawerOpen()"
         (startNewAudit)="openNewAudit()"
         (startDemoAudit)="onStartDemoAudit()"
         (reAuditRepo)="onReAuditFromDashboard($event)"

@@ -20,6 +20,7 @@ import {
 } from '../../models/audit.model';
 import { AuditResultCacheService } from '../../services/audit-result-cache.service';
 import { FileSystemAuditDataService } from '../../services/file-system-audit-data.service';
+import { StorageService } from '../../services/storage.service';
 import { BusinessUrlAuditComponent } from '../business-url-audit/business-url-audit.component';
 import { AstWorkerScannerComponent } from '../ast-worker-scanner/ast-worker-scanner.component';
 
@@ -342,8 +343,11 @@ export function summarizeRecentRepositories(
             type="button"
             id="dashboard-open-drawer-btn"
             class="secondary-flow-btn dashboard-action-btn"
+            aria-controls="saved-audits-drawer"
+            [attr.aria-expanded]="isDrawerOpen()"
+            [attr.aria-label]="'Open Saved Audits drawer (' + savedAudits().length + ' saved reports) to browse, filter, export, or restore your offline JSON, Markdown, and TOON audit history'"
+            title="Open the Saved Audits drawer to browse, filter, import, export, or restore your locally saved JSON, Markdown, and TOON audit reports"
             (click)="openDrawer.emit()"
-            title="Open Saved Audits drawer to sort and filter past repository scans"
           >
             <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
               <path d="M4.5 3.2h9a1.3 1.3 0 0 1 1.3 1.3v10.8l-5.8-3-5.8 3V4.5a1.3 1.3 0 0 1 1.3-1.3z" stroke-linejoin="round" />
@@ -671,10 +675,19 @@ export function summarizeRecentRepositories(
                   type="button"
                   id="dashboard-donut-save-latest-btn"
                   class="dashboard-inline-btn"
-                  (click)="onSaveLatestToDisk()"
-                  title="Save the most recent audit file to your local device via File System Access API"
+                  (click)="onSaveLatestToDisk('json')"
+                  title="Write the most recent audit report as a local JSON file via the File System Access API"
                 >
-                  Save Latest to Disk
+                  Save JSON
+                </button>
+                <button
+                  type="button"
+                  id="dashboard-donut-save-markdown-btn"
+                  class="dashboard-inline-btn"
+                  (click)="onSaveLatestToDisk('markdown')"
+                  title="Write the most recent audit report as an offline Markdown (.md) file via the File System Access API"
+                >
+                  Save Markdown
                 </button>
               }
 
@@ -1022,6 +1035,7 @@ export function summarizeRecentRepositories(
 })
 export class AuditDashboardComponent {
   readonly fsData = inject(FileSystemAuditDataService);
+  readonly storage = inject(StorageService);
   readonly auditCache = inject(AuditResultCacheService);
 
   readonly savedAudits = input<(SavedAuditHistoryRecord | LocalSavedAuditRecord)[]>([]);
@@ -1030,6 +1044,7 @@ export class AuditDashboardComponent {
   readonly isSigningIn = input<boolean>(false);
   readonly authError = input<string | null>(null);
   readonly localNotice = input<string | null>(null);
+  readonly isDrawerOpen = input<boolean>(false);
 
   readonly startNewAudit = output<void>();
   readonly startDemoAudit = output<void>();
@@ -1439,29 +1454,37 @@ export class AuditDashboardComponent {
   }
 
   async onConnectOrSyncFolder(): Promise<void> {
-    if (this.fsData.hasConnectedDirectory()) {
-      await this.fsData.syncConnectedDirectory();
+    if (this.storage.hasConnectedFolder()) {
+      await this.storage.syncOfflineDirectory();
       return;
     }
-    await this.fsData.connectAuditDirectory();
+    await this.storage.connectOfflineDirectory();
   }
 
   async onOpenDeviceFilePicker(): Promise<void> {
     this.importError.set(null);
     try {
-      await this.fsData.openAuditFilesFromDisk();
+      await this.storage.readAuditFiles();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to parse selected local audit file.';
       this.importError.set(msg);
     }
   }
 
-  async onSaveLatestToDisk(): Promise<void> {
+  async onSaveLatestToDisk(format?: 'json' | 'markdown'): Promise<void> {
     const latest = this.sortedAudits()[0];
     if (!latest) return;
-    const format =
-      'savedFormat' in latest && latest.savedFormat ? latest.savedFormat : 'json';
-    await this.fsData.saveAuditResultToDisk(latest, format);
+    const targetFormat =
+      format ?? ('savedFormat' in latest && latest.savedFormat ? latest.savedFormat : 'json');
+    if (targetFormat === 'markdown') {
+      await this.storage.writeAuditMarkdown(latest);
+      return;
+    }
+    if (targetFormat === 'json') {
+      await this.storage.writeAuditJson(latest);
+      return;
+    }
+    await this.storage.writeAuditFile(latest, targetFormat);
   }
 
   onSearchInput(event: Event): void {
