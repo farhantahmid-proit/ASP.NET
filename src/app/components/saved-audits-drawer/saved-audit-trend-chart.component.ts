@@ -149,7 +149,7 @@ export function buildRepositoryTrendSeries(
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (repoOptions().length > 0) {
-      <section class="drawer-trend-card" aria-labelledby="drawer-trend-heading">
+      <section #trendCardSection class="drawer-trend-card" aria-labelledby="drawer-trend-heading">
         <div class="drawer-trend-card__head">
           <div class="drawer-trend-card__title-wrap">
             <h3 id="drawer-trend-heading" class="drawer-trend-card__title">
@@ -244,12 +244,12 @@ export function buildRepositoryTrendSeries(
             <div class="drawer-trend-card__readout">
               @if (series().length >= 2) {
                 <span>
-                  {{ series().length }} runs tracked · Perf
-                  <strong>{{ summary.perfDelta >= 0 ? '+' : '' }}{{ summary.perfDelta }} pts</strong>
-                  (range {{ summary.perfMin }}–{{ summary.perfMax }})
+                  {{ series().length }} runs · Perf
+                  <strong>{{ summary.perfStart }}→{{ summary.perfEnd }}</strong>
+                  ({{ summary.perfDelta >= 0 ? '+' : '' }}{{ summary.perfDelta }})
                   · A11y
-                  <strong>{{ summary.a11yDelta >= 0 ? '+' : '' }}{{ summary.a11yDelta }} pts</strong>
-                  (range {{ summary.a11yMin }}–{{ summary.a11yMax }})
+                  <strong>{{ summary.a11yStart }}→{{ summary.a11yEnd }}</strong>
+                  ({{ summary.a11yDelta >= 0 ? '+' : '' }}{{ summary.a11yDelta }})
                 </span>
               } @else {
                 <span>
@@ -269,6 +269,7 @@ export class SavedAuditTrendChartComponent {
   readonly focusedRepo = input<string | null>(null);
 
   private readonly trendSvgHost = viewChild<ElementRef<HTMLDivElement>>('trendSvgHost');
+  private readonly trendCardSection = viewChild<ElementRef<HTMLElement>>('trendCardSection');
 
   readonly selectedRepo = signal<string>('');
   readonly scoreMode = signal<'after' | 'before'>('after');
@@ -294,6 +295,10 @@ export class SavedAuditTrendChartComponent {
   );
 
   readonly trendSummary = computed<{
+    perfStart: number;
+    perfEnd: number;
+    a11yStart: number;
+    a11yEnd: number;
     perfDelta: number;
     a11yDelta: number;
     perfMin: number;
@@ -307,6 +312,10 @@ export class SavedAuditTrendChartComponent {
     const perfVals = pts.map((p) => (mode === 'after' ? p.performanceAfter : p.performanceBefore));
     const a11yVals = pts.map((p) => (mode === 'after' ? p.accessibilityAfter : p.accessibilityBefore));
     return {
+      perfStart: perfVals[0],
+      perfEnd: perfVals[perfVals.length - 1],
+      a11yStart: a11yVals[0],
+      a11yEnd: a11yVals[a11yVals.length - 1],
       perfDelta: perfVals[perfVals.length - 1] - perfVals[0],
       a11yDelta: a11yVals[a11yVals.length - 1] - a11yVals[0],
       perfMin: Math.min(...perfVals),
@@ -354,6 +363,16 @@ export class SavedAuditTrendChartComponent {
     this.activePoint.set(null);
   }
 
+  focusRepository(repoFullName: string): void {
+    if (!repoFullName) return;
+    this.selectedRepo.set(repoFullName);
+    this.activePoint.set(null);
+    const el = this.trendCardSection()?.nativeElement;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
   private renderD3TrendChart(
     host: HTMLDivElement,
     points: RepositoryTrendPoint[],
@@ -394,6 +413,24 @@ export class SavedAuditTrendChartComponent {
       .append('stop')
       .attr('offset', '100%')
       .attr('stop-color', 'var(--cat-perf, #2563eb)')
+      .attr('stop-opacity', 0);
+
+    const a11yGrad = defs
+      .append('linearGradient')
+      .attr('id', 'drawer-a11y-area-grad')
+      .attr('x1', '0%')
+      .attr('y1', '0%')
+      .attr('x2', '0%')
+      .attr('y2', '100%');
+    a11yGrad
+      .append('stop')
+      .attr('offset', '0%')
+      .attr('stop-color', 'var(--cat-a11y, #10b981)')
+      .attr('stop-opacity', 0.12);
+    a11yGrad
+      .append('stop')
+      .attr('offset', '100%')
+      .attr('stop-color', 'var(--cat-a11y, #10b981)')
       .attr('stop-opacity', 0);
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
@@ -467,6 +504,19 @@ export class SavedAuditTrendChartComponent {
         .y((d) => yScale(getA11y(d)))
         .curve(d3.curveMonotoneX);
 
+      const a11yArea = d3
+        .area<RepositoryTrendPoint>()
+        .x((d) => getX(d))
+        .y0(innerH)
+        .y1((d) => yScale(getA11y(d)))
+        .curve(d3.curveMonotoneX);
+
+      g.append('path')
+        .datum(points)
+        .attr('class', 'drawer-trend-area drawer-trend-area--a11y')
+        .attr('fill', 'url(#drawer-a11y-area-grad)')
+        .attr('d', a11yArea);
+
       g.append('path')
         .datum(points)
         .attr('class', 'drawer-trend-line drawer-trend-line--perf')
@@ -485,6 +535,36 @@ export class SavedAuditTrendChartComponent {
         .attr('stroke-linecap', 'round')
         .attr('stroke-dasharray', '5,3')
         .attr('d', a11yLine);
+
+      // Value labels on first and latest runs to highlight improvement history
+      const endpointPoints = [points[0], points[points.length - 1]];
+      g.selectAll('.drawer-trend-score-perf')
+        .data(endpointPoints)
+        .enter()
+        .append('text')
+        .attr('class', 'drawer-trend-score-label')
+        .attr('x', (d) => getX(d))
+        .attr('y', (d) => Math.max(10, yScale(getPerf(d)) - 8))
+        .attr('text-anchor', (_d, i) => (i === 0 ? 'start' : 'end'))
+        .attr('fill', 'var(--cat-perf, #2563eb)')
+        .attr('font-size', '9.5px')
+        .attr('font-weight', '600')
+        .attr('font-family', 'var(--font-mono, monospace)')
+        .text((d) => `${getPerf(d)}`);
+
+      g.selectAll('.drawer-trend-score-a11y')
+        .data(endpointPoints)
+        .enter()
+        .append('text')
+        .attr('class', 'drawer-trend-score-label')
+        .attr('x', (d) => getX(d))
+        .attr('y', (d) => Math.min(innerH - 4, yScale(getA11y(d)) + 15))
+        .attr('text-anchor', (_d, i) => (i === 0 ? 'start' : 'end'))
+        .attr('fill', 'var(--cat-a11y, #10b981)')
+        .attr('font-size', '9.5px')
+        .attr('font-weight', '600')
+        .attr('font-family', 'var(--font-mono, monospace)')
+        .text((d) => `${getA11y(d)}`);
     }
 
     // X-axis run labels (avoid crowding if many runs)
@@ -507,6 +587,27 @@ export class SavedAuditTrendChartComponent {
       .attr('font-family', 'var(--font-mono, monospace)')
       .text((d) => `R${d.runIndex} · ${d.shortDate}`);
 
+    const crosshair = g
+      .append('line')
+      .attr('class', 'drawer-trend-crosshair')
+      .attr('y1', 0)
+      .attr('y2', innerH)
+      .attr('stroke', 'var(--text-muted, #64748b)')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3,3')
+      .style('opacity', 0)
+      .style('pointer-events', 'none');
+
+    const highlightPoint = (pt: RepositoryTrendPoint | null): void => {
+      this.activePoint.set(pt);
+      if (!pt) {
+        crosshair.style('opacity', 0);
+        return;
+      }
+      const cx = getX(pt);
+      crosshair.attr('x1', cx).attr('x2', cx).style('opacity', 0.65);
+    };
+
     // Performance data dots (hover + keyboard focusable)
     g.selectAll('.drawer-trend-dot-perf')
       .data(points)
@@ -523,10 +624,10 @@ export class SavedAuditTrendChartComponent {
       .attr('stroke', 'var(--bg-card, #ffffff)')
       .attr('stroke-width', 1.5)
       .style('cursor', 'pointer')
-      .on('mouseenter', (_ev, d) => this.activePoint.set(d))
-      .on('mouseleave', () => this.activePoint.set(null))
-      .on('focus', (_ev, d) => this.activePoint.set(d))
-      .on('blur', () => this.activePoint.set(null))
+      .on('mouseenter', (_ev, d) => highlightPoint(d))
+      .on('mouseleave', () => highlightPoint(null))
+      .on('focus', (_ev, d) => highlightPoint(d))
+      .on('blur', () => highlightPoint(null))
       .append('title')
       .text((d) => `Run ${d.runIndex} (${d.fullDate}) — Performance: ${getPerf(d)}`);
 
@@ -546,10 +647,10 @@ export class SavedAuditTrendChartComponent {
       .attr('stroke', 'var(--bg-card, #ffffff)')
       .attr('stroke-width', 1.5)
       .style('cursor', 'pointer')
-      .on('mouseenter', (_ev, d) => this.activePoint.set(d))
-      .on('mouseleave', () => this.activePoint.set(null))
-      .on('focus', (_ev, d) => this.activePoint.set(d))
-      .on('blur', () => this.activePoint.set(null))
+      .on('mouseenter', (_ev, d) => highlightPoint(d))
+      .on('mouseleave', () => highlightPoint(null))
+      .on('focus', (_ev, d) => highlightPoint(d))
+      .on('blur', () => highlightPoint(null))
       .append('title')
       .text((d) => `Run ${d.runIndex} (${d.fullDate}) — Accessibility: ${getA11y(d)}`);
   }

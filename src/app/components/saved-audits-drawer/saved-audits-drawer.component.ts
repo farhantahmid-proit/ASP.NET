@@ -4,7 +4,8 @@ import {
   computed,
   input,
   output,
-  signal
+  signal,
+  viewChild
 } from '@angular/core';
 import {
   LocalAuditFormat,
@@ -294,10 +295,14 @@ export function filterSavedAuditRecords(
           year: 'numeric'
         })
       : '';
+    const owner = extractRepoOwner(rec);
     const haystack = [
       rec.repoFullName,
       rec.repoUrl || '',
-      extractRepoOwner(rec),
+      owner,
+      `@${owner}`,
+      `org:${owner}`,
+      `owner:${owner}`,
       rec.branch || '',
       rec.summaryNotes || '',
       sourceLabel,
@@ -482,7 +487,7 @@ export function filterSavedAuditRecords(
         @if (savedAudits().length > 0) {
           <div class="saved-audits-search-wrap">
             <label for="drawer-audit-search" class="sr-only">
-              Search saved audits by repository name, URL keyword, or date range
+              Search saved audits by repository name, owner, organization, URL keyword, or date range
             </label>
             <svg
               class="saved-audits-search-wrap__icon"
@@ -499,7 +504,7 @@ export function filterSavedAuditRecords(
               id="drawer-audit-search"
               type="search"
               class="saved-audits-drawer__search saved-audits-drawer__search--with-icon"
-              placeholder="Search repo name, URL keyword, or YYYY-MM-DD..YYYY-MM-DD..."
+              placeholder="Search repo name, owner/org, URL, or YYYY-MM-DD..YYYY-MM-DD..."
               [value]="searchQuery()"
               (input)="onSearchInput($event)"
               autocomplete="off"
@@ -517,211 +522,6 @@ export function filterSavedAuditRecords(
               </button>
             }
           </div>
-
-          <div
-            id="drawer-date-range-controls"
-            class="saved-audits-date-row"
-            role="group"
-            aria-label="Filter saved audits by date range"
-          >
-            <div class="saved-audits-drawer__filters" role="group" aria-label="Quick date range presets">
-              <button
-                type="button"
-                id="drawer-date-preset-all"
-                class="saved-audits-filter-btn"
-                [class.is-active]="datePreset() === 'all'"
-                (click)="selectDatePreset('all')"
-              >
-                Any Date
-              </button>
-              <button
-                type="button"
-                id="drawer-date-preset-24h"
-                class="saved-audits-filter-btn"
-                [class.is-active]="datePreset() === '24h'"
-                (click)="selectDatePreset('24h')"
-              >
-                24h
-              </button>
-              <button
-                type="button"
-                id="drawer-date-preset-7d"
-                class="saved-audits-filter-btn"
-                [class.is-active]="datePreset() === '7d'"
-                (click)="selectDatePreset('7d')"
-              >
-                7d
-              </button>
-              <button
-                type="button"
-                id="drawer-date-preset-30d"
-                class="saved-audits-filter-btn"
-                [class.is-active]="datePreset() === '30d'"
-                (click)="selectDatePreset('30d')"
-              >
-                30d
-              </button>
-            </div>
-
-            <div class="saved-audits-date-inputs">
-              <label for="drawer-date-from" class="sr-only">Audit date from</label>
-              <input
-                id="drawer-date-from"
-                type="date"
-                class="saved-audits-date-input"
-                [value]="dateFrom()"
-                (change)="onDateFromChange($event)"
-                title="Filter audits on or after this date"
-              />
-              <span class="saved-audits-date-sep" aria-hidden="true">–</span>
-              <label for="drawer-date-to" class="sr-only">Audit date to</label>
-              <input
-                id="drawer-date-to"
-                type="date"
-                class="saved-audits-date-input"
-                [value]="dateTo()"
-                (change)="onDateToChange($event)"
-                title="Filter audits on or before this date"
-              />
-            </div>
-          </div>
-          <div class="saved-audits-sort-row">
-            <div class="saved-audits-drawer__filters" role="group" aria-label="Filter saved scans by phase">
-              <button
-                type="button"
-                class="saved-audits-filter-btn"
-                [class.is-active]="phaseFilter() === 'all'"
-                (click)="phaseFilter.set('all')"
-              >
-                All ({{ savedAudits().length }})
-              </button>
-              <button
-                type="button"
-                class="saved-audits-filter-btn"
-                [class.is-active]="phaseFilter() === 'static'"
-                (click)="phaseFilter.set('static')"
-              >
-                Static AST
-              </button>
-              <button
-                type="button"
-                class="saved-audits-filter-btn"
-                [class.is-active]="phaseFilter() === 'lhr'"
-                (click)="phaseFilter.set('lhr')"
-              >
-                LHR JSON
-              </button>
-            </div>
-
-            <div class="saved-audits-sort-field">
-              <label for="drawer-audit-sort" class="saved-audits-sort-label">Sort</label>
-              <select
-                id="drawer-audit-sort"
-                class="saved-audits-sort-select"
-                aria-label="Sort saved repository audits"
-                [value]="sortBy()"
-                (change)="onSortChange($event)"
-              >
-                <option value="date-desc">Newest first</option>
-                <option value="date-asc">Oldest first</option>
-                <option value="repo-asc">Repository A–Z</option>
-                <option value="repo-desc">Repository Z–A</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="saved-audits-source-row">
-            <span class="saved-audits-format-label">Source:</span>
-            <div class="saved-audits-drawer__filters" role="group" aria-label="Filter saved scans by storage source">
-              <button
-                type="button"
-                id="drawer-source-all-btn"
-                class="saved-audits-filter-btn"
-                [class.is-active]="sourceFilter() === 'all'"
-                (click)="sourceFilter.set('all')"
-              >
-                All
-              </button>
-              <button
-                type="button"
-                id="drawer-source-local-btn"
-                class="saved-audits-filter-btn"
-                [class.is-active]="sourceFilter() === 'local'"
-                (click)="sourceFilter.set('local')"
-              >
-                Local ({{ localCount() }})
-              </button>
-              <button
-                type="button"
-                id="drawer-source-firestore-btn"
-                class="saved-audits-filter-btn"
-                [class.is-active]="sourceFilter() === 'firestore'"
-                (click)="sourceFilter.set('firestore')"
-              >
-                Firestore ({{ firestoreCount() }})
-              </button>
-            </div>
-          </div>
-
-          <div class="saved-audits-owner-row">
-            <div class="saved-audits-owner-field">
-              <label for="drawer-owner-filter" class="saved-audits-sort-label">Org / Owner</label>
-              <select
-                id="drawer-owner-filter"
-                class="saved-audits-sort-select saved-audits-owner-select"
-                aria-label="Filter saved audits by GitHub organization or repository owner"
-                [value]="ownerFilter()"
-                (change)="onOwnerFilterChange($event)"
-              >
-                <option value="all">All orgs / owners ({{ ownerOptions().length }})</option>
-                @for (opt of ownerOptions(); track opt.owner) {
-                  <option [value]="opt.owner">
-                    &#64;{{ opt.owner }} ({{ opt.count }})
-                  </option>
-                }
-              </select>
-            </div>
-
-            <button
-              type="button"
-              id="drawer-group-by-owner-btn"
-              class="saved-audits-filter-btn"
-              [class.is-active]="groupByOwner()"
-              [attr.aria-pressed]="groupByOwner()"
-              (click)="toggleGroupByOwner()"
-              title="Toggle grouping saved audits by GitHub organization or repository owner"
-            >
-              {{ groupByOwner() ? 'Grouped by Org' : 'Group by Org' }}
-            </button>
-          </div>
-
-          @if (ownerOptions().length > 1) {
-            <div
-              id="drawer-owner-chips"
-              class="saved-audits-owner-chips"
-              role="group"
-              aria-label="Quick filter by GitHub organization or repository owner"
-            >
-              <button
-                type="button"
-                class="saved-audits-owner-chip"
-                [class.is-active]="ownerFilter() === 'all'"
-                (click)="ownerFilter.set('all')"
-              >
-                All Orgs ({{ savedAudits().length }})
-              </button>
-              @for (opt of ownerOptions(); track opt.owner) {
-                <button
-                  type="button"
-                  class="saved-audits-owner-chip"
-                  [class.is-active]="ownerFilter().toLowerCase() === opt.owner.toLowerCase()"
-                  (click)="onQuickSelectOwner(opt.owner)"
-                >
-                  &#64;{{ opt.owner }} ({{ opt.count }})
-                </button>
-              }
-            </div>
-          }
         }
       </div>
 
@@ -764,27 +564,237 @@ export function filterSavedAuditRecords(
               }
             </div>
           </div>
-        } @else if (filteredAudits().length === 0) {
-          <div class="saved-audits-drawer__empty">
-            <h3>No matching scans</h3>
-            <p>No saved local or cloud records match your search or phase filter.</p>
-            <button
-              type="button"
-              class="secondary-flow-btn"
-              (click)="resetFilters()"
-            >
-              <span>Reset filters</span>
-            </button>
-          </div>
         } @else {
-          <!-- D3.js Score Trend Line Chart across runs for a single repository -->
-          <app-saved-audit-trend-chart
-            [records]="filteredAudits()"
-            [isVisible]="isOpen()"
-            [focusedRepo]="focusedTrendRepo()"
-          />
+          @if (filteredAudits().length > 0) {
+            <!-- D3.js Score Trend Line Chart across runs for a single repository -->
+            <app-saved-audit-trend-chart
+              [records]="filteredAudits()"
+              [isVisible]="isOpen()"
+              [focusedRepo]="focusedTrendRepo()"
+            />
+          }
 
-          @if (groupByOwner()) {
+          <div class="saved-audits-drawer__filter-panel">
+            <div
+              id="drawer-date-range-controls"
+              class="saved-audits-date-row"
+              role="group"
+              aria-label="Filter saved audits by date range"
+            >
+              <div class="saved-audits-drawer__filters" role="group" aria-label="Quick date range presets">
+                <button
+                  type="button"
+                  id="drawer-date-preset-all"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="datePreset() === 'all'"
+                  (click)="selectDatePreset('all')"
+                >
+                  Any Date
+                </button>
+                <button
+                  type="button"
+                  id="drawer-date-preset-24h"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="datePreset() === '24h'"
+                  (click)="selectDatePreset('24h')"
+                >
+                  24h
+                </button>
+                <button
+                  type="button"
+                  id="drawer-date-preset-7d"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="datePreset() === '7d'"
+                  (click)="selectDatePreset('7d')"
+                >
+                  7d
+                </button>
+                <button
+                  type="button"
+                  id="drawer-date-preset-30d"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="datePreset() === '30d'"
+                  (click)="selectDatePreset('30d')"
+                >
+                  30d
+                </button>
+              </div>
+
+              <div class="saved-audits-date-inputs">
+                <label for="drawer-date-from" class="sr-only">Audit date from</label>
+                <input
+                  id="drawer-date-from"
+                  type="date"
+                  class="saved-audits-date-input"
+                  [value]="dateFrom()"
+                  (change)="onDateFromChange($event)"
+                  title="Filter audits on or after this date"
+                />
+                <span class="saved-audits-date-sep" aria-hidden="true">–</span>
+                <label for="drawer-date-to" class="sr-only">Audit date to</label>
+                <input
+                  id="drawer-date-to"
+                  type="date"
+                  class="saved-audits-date-input"
+                  [value]="dateTo()"
+                  (change)="onDateToChange($event)"
+                  title="Filter audits on or before this date"
+                />
+              </div>
+            </div>
+
+            <div class="saved-audits-sort-row">
+              <div class="saved-audits-drawer__filters" role="group" aria-label="Filter saved scans by phase">
+                <button
+                  type="button"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="phaseFilter() === 'all'"
+                  (click)="phaseFilter.set('all')"
+                >
+                  All ({{ savedAudits().length }})
+                </button>
+                <button
+                  type="button"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="phaseFilter() === 'static'"
+                  (click)="phaseFilter.set('static')"
+                >
+                  Static AST
+                </button>
+                <button
+                  type="button"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="phaseFilter() === 'lhr'"
+                  (click)="phaseFilter.set('lhr')"
+                >
+                  LHR JSON
+                </button>
+              </div>
+
+              <div class="saved-audits-sort-field">
+                <label for="drawer-audit-sort" class="saved-audits-sort-label">Sort</label>
+                <select
+                  id="drawer-audit-sort"
+                  class="saved-audits-sort-select"
+                  aria-label="Sort saved repository audits"
+                  [value]="sortBy()"
+                  (change)="onSortChange($event)"
+                >
+                  <option value="date-desc">Newest first</option>
+                  <option value="date-asc">Oldest first</option>
+                  <option value="repo-asc">Repository A–Z</option>
+                  <option value="repo-desc">Repository Z–A</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="saved-audits-source-row">
+              <span class="saved-audits-format-label">Source:</span>
+              <div class="saved-audits-drawer__filters" role="group" aria-label="Filter saved scans by storage source">
+                <button
+                  type="button"
+                  id="drawer-source-all-btn"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="sourceFilter() === 'all'"
+                  (click)="sourceFilter.set('all')"
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  id="drawer-source-local-btn"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="sourceFilter() === 'local'"
+                  (click)="sourceFilter.set('local')"
+                >
+                  Local ({{ localCount() }})
+                </button>
+                <button
+                  type="button"
+                  id="drawer-source-firestore-btn"
+                  class="saved-audits-filter-btn"
+                  [class.is-active]="sourceFilter() === 'firestore'"
+                  (click)="sourceFilter.set('firestore')"
+                >
+                  Firestore ({{ firestoreCount() }})
+                </button>
+              </div>
+            </div>
+
+            <div class="saved-audits-owner-row">
+              <div class="saved-audits-owner-field">
+                <label for="drawer-owner-filter" class="saved-audits-sort-label">Org / Owner</label>
+                <select
+                  id="drawer-owner-filter"
+                  class="saved-audits-sort-select saved-audits-owner-select"
+                  aria-label="Filter saved audits by GitHub organization or repository owner"
+                  [value]="ownerFilter()"
+                  (change)="onOwnerFilterChange($event)"
+                >
+                  <option value="all">All orgs / owners ({{ ownerOptions().length }})</option>
+                  @for (opt of ownerOptions(); track opt.owner) {
+                    <option [value]="opt.owner">
+                      &#64;{{ opt.owner }} ({{ opt.count }})
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <button
+                type="button"
+                id="drawer-group-by-owner-btn"
+                class="saved-audits-filter-btn"
+                [class.is-active]="groupByOwner()"
+                [attr.aria-pressed]="groupByOwner()"
+                (click)="toggleGroupByOwner()"
+                title="Toggle grouping saved audits by GitHub organization or repository owner"
+              >
+                {{ groupByOwner() ? 'Grouped by Org' : 'Group by Org' }}
+              </button>
+            </div>
+
+            @if (ownerOptions().length > 1) {
+              <div
+                id="drawer-owner-chips"
+                class="saved-audits-owner-chips"
+                role="group"
+                aria-label="Quick filter by GitHub organization or repository owner"
+              >
+                <button
+                  type="button"
+                  class="saved-audits-owner-chip"
+                  [class.is-active]="ownerFilter() === 'all'"
+                  (click)="ownerFilter.set('all')"
+                >
+                  All Orgs ({{ savedAudits().length }})
+                </button>
+                @for (opt of ownerOptions(); track opt.owner) {
+                  <button
+                    type="button"
+                    class="saved-audits-owner-chip"
+                    [class.is-active]="ownerFilter().toLowerCase() === opt.owner.toLowerCase()"
+                    (click)="onQuickSelectOwner(opt.owner)"
+                  >
+                    &#64;{{ opt.owner }} ({{ opt.count }})
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          @if (filteredAudits().length === 0) {
+            <div class="saved-audits-drawer__empty">
+              <h3>No matching scans</h3>
+              <p>No saved local or cloud records match your search or phase filter.</p>
+              <button
+                type="button"
+                class="secondary-flow-btn"
+                (click)="resetFilters()"
+              >
+                <span>Reset filters</span>
+              </button>
+            </div>
+          } @else if (groupByOwner()) {
             <div class="saved-audit-owner-groups" aria-label="Saved audits grouped by GitHub organization or owner">
               @for (group of groupedAudits(); track group.owner) {
                 <section class="saved-audit-owner-group" [attr.aria-label]="'Organization ' + group.owner">
@@ -1144,6 +1154,8 @@ export class SavedAuditsDrawerComponent {
   readonly signInGithub = output<void>();
   readonly signInGoogle = output<void>();
 
+  private readonly trendChart = viewChild(SavedAuditTrendChartComponent);
+
   readonly searchQuery = signal<string>('');
   readonly datePreset = signal<SavedAuditDatePreset>('all');
   readonly dateFrom = signal<string>('');
@@ -1253,6 +1265,7 @@ export class SavedAuditsDrawerComponent {
 
   focusRepoTrend(repoFullName: string): void {
     this.focusedTrendRepo.set(repoFullName);
+    this.trendChart()?.focusRepository(repoFullName);
   }
 
   resetFilters(): void {

@@ -122,8 +122,12 @@ export class AppComponent {
   private shortcutNoticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    if (typeof window !== 'undefined' && this.localAuditStorage.localAudits().length === 0) {
-      void this.hydrateOrSeedSavedAudits();
+    if (typeof window !== 'undefined') {
+      if (this.localAuditStorage.localAudits().length === 0) {
+        void this.hydrateOrSeedSavedAudits();
+      } else {
+        this.localAuditStorage.seedSampleAuditsIfEmpty();
+      }
     }
 
     // Mirror saved audits into Workbox Cache Storage whenever history changes for zero-network offline viewing
@@ -155,7 +159,6 @@ export class AppComponent {
     const cached = await this.pwaOffline.readCachedAuditsFromOfflineCache();
     if (cached.length > 0) {
       this.localAuditStorage.replaceAllLocalAudits(cached);
-      return;
     }
     this.localAuditStorage.seedSampleAuditsIfEmpty();
   }

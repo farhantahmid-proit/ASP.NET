@@ -369,6 +369,17 @@ describe('SavedAuditsDrawerComponent', () => {
     const byUrlKeyword = filterSavedAuditRecords(customUrlAudits, 'enterprise-corp.io/payments', 'all');
     expect(byUrlKeyword.map((r) => r.auditId)).toEqual(['url-audit-1']);
 
+    // Match by @owner / org: / owner: syntax or organization name
+    expect(filterSavedAuditRecords(customUrlAudits, '@enterprise', 'all').map((r) => r.auditId)).toEqual([
+      'url-audit-1'
+    ]);
+    expect(
+      filterSavedAuditRecords(customUrlAudits, 'org:fresnel-sandbox', 'all').map((r) => r.auditId)
+    ).toEqual(['url-audit-2']);
+    expect(
+      filterSavedAuditRecords(customUrlAudits, 'owner:enterprise', 'all').map((r) => r.auditId)
+    ).toEqual(['url-audit-1']);
+
     // Match by inline date range token inside the search query
     const byInlineRange = filterSavedAuditRecords(
       customUrlAudits,
