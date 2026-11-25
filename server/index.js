@@ -18,6 +18,7 @@ import {
 } from './oss-engine/report-builders.js';
 import { executeOssStaticAudit, executeOssLhrAudit } from './oss-engine/audit-orchestrator.js';
 import { detectChromiumAvailability, runLiveLighthouseAudit } from './oss-engine/lighthouse-runner.js';
+import { runPageSpeedInsightsAudit } from './oss-engine/pagespeed-runner.js';
 import { fetchOssWebStandardsGrounding } from './oss-engine/standards-registry.js';
 import {
   detectGithubSshReadiness,
@@ -914,7 +915,7 @@ export async function handleFresnelApiRequest(req, res) {
     return true;
   }
 
-  // 2c. POST /api/audit/:id/lighthouse-live (Optional On-Demand Open-Source Live Lighthouse Runner)
+  // 2c. POST /api/audit/:id/lighthouse-live (Local Chromium Lighthouse with Google PageSpeed Cloud Fallback)
   const liveLhMatch = pathname.match(/^\/api\/audit\/([^/]+)\/lighthouse-live$/);
   if (req.method === 'POST' && liveLhMatch) {
     const clientId = resolveAuditClientId(req, url);
@@ -924,19 +925,81 @@ export async function handleFresnelApiRequest(req, res) {
       return true;
     }
     const body = await readJsonBody(req);
+    const chromiumInfo = detectChromiumAvailability();
+    if (chromiumInfo.available) {
+      try {
+        const lhr = await runLiveLighthouseAudit(body.targetUrl);
+        sendJson(res, 200, {
+          source: 'local-chromium-lighthouse',
+          lhrJson: JSON.stringify(lhr, null, 2),
+          lighthouseVersion: lhr.lighthouseVersion,
+          requestedUrl: lhr.requestedUrl,
+          fetchTime: lhr.fetchTime
+        });
+        return true;
+      } catch (err) {
+        sendJson(res, 422, {
+          error: err?.message || 'Unable to execute live Lighthouse audit on target URL.',
+          liveLighthouseAvailable: true
+        });
+        return true;
+      }
+    }
+
+    // Automatic cloud Lighthouse via Google PageSpeed Insights when Chromium is unavailable in container
     try {
-      const lhr = await runLiveLighthouseAudit(body.targetUrl);
+      const psi = await runPageSpeedInsightsAudit({
+        targetUrl: body.targetUrl,
+        strategy: body.strategy === 'desktop' ? 'desktop' : 'mobile'
+      });
       sendJson(res, 200, {
-        lhrJson: JSON.stringify(lhr, null, 2),
-        lighthouseVersion: lhr.lighthouseVersion,
-        requestedUrl: lhr.requestedUrl,
-        fetchTime: lhr.fetchTime
+        source: psi.source,
+        lhrJson: psi.lhrJson,
+        lighthouseVersion: psi.lighthouseVersion,
+        requestedUrl: psi.requestedUrl,
+        fetchTime: psi.fetchTime,
+        scores: psi.scores,
+        coreWebVitals: psi.coreWebVitals
       });
     } catch (err) {
       sendJson(res, 422, {
-        error: err?.message || 'Unable to execute live Lighthouse audit on target URL.',
-        liveLighthouseAvailable: detectChromiumAvailability().available
+        error: err?.message || 'Unable to execute live Lighthouse audit via PageSpeed Insights.',
+        liveLighthouseAvailable: false
       });
+    }
+    return true;
+  }
+
+  // 2d. POST /api/audit/pagespeed (Direct Google PageSpeed Insights v5 Live Cloud Lighthouse API)
+  if (req.method === 'POST' && pathname === '/api/audit/pagespeed') {
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON request payload.' });
+      return true;
+    }
+
+    const rawUrl = typeof body.targetUrl === 'string' ? body.targetUrl.trim() : '';
+    if (!rawUrl || rawUrl.length > 2048) {
+      sendJson(res, 400, { error: 'Provide a valid public http(s) targetUrl to audit.' });
+      return true;
+    }
+
+    const strategy = body.strategy === 'desktop' ? 'desktop' : 'mobile';
+    const categories = Array.isArray(body.categories) ? body.categories : undefined;
+
+    try {
+      const result = await runPageSpeedInsightsAudit({
+        targetUrl: rawUrl,
+        strategy,
+        categories
+      });
+      sendJson(res, 200, result);
+    } catch (err) {
+      const message = err?.message || 'Failed to run Google PageSpeed Insights audit.';
+      const status = /private|local|protocol|valid http|hostname/i.test(message) ? 400 : 422;
+      sendJson(res, status, { error: message });
     }
     return true;
   }

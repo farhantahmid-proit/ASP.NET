@@ -23,6 +23,7 @@ import { FileSystemAuditDataService } from '../../services/file-system-audit-dat
 import { StorageService } from '../../services/storage.service';
 import { BusinessUrlAuditComponent } from '../business-url-audit/business-url-audit.component';
 import { AstWorkerScannerComponent } from '../ast-worker-scanner/ast-worker-scanner.component';
+import { LiveAuditSuiteComponent } from '../live-audit-suite/live-audit-suite.component';
 
 export type AuditCategoryKey =
   | 'performance'
@@ -316,7 +317,7 @@ export function summarizeRecentRepositories(
 @Component({
   selector: 'app-audit-dashboard',
   standalone: true,
-  imports: [BusinessUrlAuditComponent, AstWorkerScannerComponent],
+  imports: [BusinessUrlAuditComponent, AstWorkerScannerComponent, LiveAuditSuiteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="dashboard-shell" aria-labelledby="dashboard-heading">
@@ -486,6 +487,11 @@ export function summarizeRecentRepositories(
 
       <!-- In-Browser Web Worker Acorn AST Scanner -->
       <app-ast-worker-scanner
+        (openSavedAudit)="openSavedAudit.emit($event)"
+      />
+
+      <!-- Live Cloud Lighthouse (PageSpeed), axe-core, web-vitals, Playwright & Chrome Extension Suite -->
+      <app-live-audit-suite
         (openSavedAudit)="openSavedAudit.emit($event)"
       />
 

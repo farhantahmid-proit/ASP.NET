@@ -38,6 +38,10 @@ import {
   correlateLhrWithWorkspace
 } from '../server/oss-engine/lighthouse-runner.js';
 import {
+  normalizePageSpeedResponse,
+  runPageSpeedInsightsAudit
+} from '../server/oss-engine/pagespeed-runner.js';
+import {
   SAMPLE_LIGHTHOUSE_LHR_JSON,
   buildPullRequestCliBundle,
   generateAuditReportMarkdown,
@@ -345,6 +349,103 @@ describe('Fresnel Zero-AI OSS Audit Engine Pipeline', () => {
       expect(badUrlDiag.ok).toBeFalse();
       expect(badUrlDiag.rootCause).toBe('invalid_push_url');
       expect(badUrlDiag.resolutionSteps.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Google PageSpeed Insights Live Cloud Lighthouse Runner', () => {
+    it('blocks private, loopback, metadata, and non-HTTP URLs before calling fetch', async () => {
+      let fetchCalled = false;
+      const spyFetch = async () => {
+        fetchCalled = true;
+        throw new Error('fetch should not be invoked for blocked URLs');
+      };
+
+      await expectAsync(
+        runPageSpeedInsightsAudit({ targetUrl: 'http://127.0.0.1:3000/', fetchImpl: spyFetch })
+      ).toBeRejected();
+      await expectAsync(
+        runPageSpeedInsightsAudit({ targetUrl: 'http://169.254.169.254/latest/meta-data/', fetchImpl: spyFetch })
+      ).toBeRejected();
+      await expectAsync(
+        runPageSpeedInsightsAudit({ targetUrl: 'file:///etc/passwd', fetchImpl: spyFetch })
+      ).toBeRejected();
+      expect(fetchCalled).toBeFalse();
+    });
+
+    it('normalizes Google PageSpeed Insights v5 LHR responses into scores, Core Web Vitals, and compact LHR JSON', () => {
+      const normalized = normalizePageSpeedResponse(
+        {
+          loadingExperience: {
+            metrics: {
+              INTERACTION_TO_NEXT_PAINT: { percentile: 142 }
+            }
+          },
+          lighthouseResult: {
+            lighthouseVersion: '12.4.0',
+            fetchTime: '2026-11-25T10:00:00.000Z',
+            requestedUrl: 'https://web.dev/',
+            finalDisplayedUrl: 'https://web.dev/',
+            categories: {
+              performance: { score: 0.84, auditRefs: [{ id: 'render-blocking-resources' }] },
+              accessibility: { score: 0.92, auditRefs: [{ id: 'color-contrast' }] },
+              'best-practices': { score: 0.95, auditRefs: [] },
+              seo: { score: 1.0, auditRefs: [] }
+            },
+            audits: {
+              'largest-contentful-paint': {
+                id: 'largest-contentful-paint',
+                title: 'Largest Contentful Paint',
+                score: 0.72,
+                numericValue: 2340,
+                displayValue: '2.3 s'
+              },
+              'first-contentful-paint': {
+                id: 'first-contentful-paint',
+                title: 'First Contentful Paint',
+                score: 0.94,
+                numericValue: 920,
+                displayValue: '0.9 s'
+              },
+              'cumulative-layout-shift': {
+                id: 'cumulative-layout-shift',
+                title: 'Cumulative Layout Shift',
+                score: 1,
+                numericValue: 0.012,
+                displayValue: '0.012'
+              },
+              'render-blocking-resources': {
+                id: 'render-blocking-resources',
+                title: 'Eliminate render-blocking resources',
+                description: 'Resources are blocking first paint.',
+                score: 0.35,
+                displayValue: 'Potential savings of 410 ms'
+              },
+              'color-contrast': {
+                id: 'color-contrast',
+                title: 'Background and foreground colors do not have sufficient contrast',
+                description: 'Low contrast text fails WCAG AA.',
+                score: 0,
+                displayValue: '2 elements'
+              }
+            }
+          }
+        },
+        { requestedUrl: 'https://web.dev/', strategy: 'desktop' }
+      );
+
+      expect(normalized.source).toBe('google-pagespeed-insights');
+      expect(normalized.strategy).toBe('desktop');
+      expect(normalized.scores).toEqual({
+        performance: 84,
+        accessibility: 92,
+        bestPractices: 95,
+        seo: 100
+      });
+      expect(normalized.coreWebVitals.lcpMs).toBe(2340);
+      expect(normalized.coreWebVitals.inpMs).toBe(142);
+      expect(normalized.failingAudits.length).toBeGreaterThanOrEqual(2);
+      expect(normalized.failingAudits[0].id).toBe('color-contrast');
+      expect(JSON.parse(normalized.lhrJson).lighthouseVersion).toBe('12.4.0');
     });
   });
 });
