@@ -174,6 +174,7 @@ const MIME_TYPES = {
   '.mjs': 'application/javascript; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -1316,6 +1317,10 @@ export async function handleFresnelRequest(req, res) {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
       const headers = { 'Content-Type': contentType };
+      if (safePath === '/sw.js') {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Service-Worker-Allowed'] = '/';
+      }
       if (ext === '.svg') {
         headers['X-Content-Type-Options'] = 'nosniff';
         headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; sandbox";

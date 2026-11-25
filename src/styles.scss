@@ -6837,6 +6837,69 @@ a.repo-stat-chip:hover {
   flex-shrink: 0;
 }
 
+/* Responsive #saved-audits-drawer-button aligned with #github-login-btn rhythm across desktop, tablet, and mobile */
+#saved-audits-drawer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 38px;
+  min-height: 38px;
+  margin: 0;
+  padding: 0 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  visibility: visible;
+  opacity: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#saved-audits-drawer-button svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+#saved-audits-drawer-button .saved-audits-trigger-btn__count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 1024px) and (min-width: 641px) {
+  #saved-audits-drawer-button {
+    height: 38px;
+    min-height: 38px;
+    margin: 0;
+    padding: 0 0.85rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 640px) {
+  #saved-audits-drawer-button {
+    height: 42px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0 0.85rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 390px) {
+  #saved-audits-drawer-button {
+    padding: 0 0.72rem;
+    gap: 0.35rem;
+  }
+
+  #saved-audits-drawer-button .saved-audits-trigger-btn__label {
+    display: none;
+  }
+}
+
 .dashboard-kpi-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7459,17 +7522,19 @@ a.repo-stat-chip:hover {
 
 .saved-audits-drawer__header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: flex-end;
+  gap: 0.4rem;
   flex-shrink: 0;
 }
 
 .saved-audits-drawer__controls {
-  padding: 0.85rem 1.35rem;
+  padding: 0.65rem 1.25rem;
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.42rem;
   background: var(--bg-subtle);
 }
 
@@ -7812,6 +7877,228 @@ a.repo-stat-chip:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.saved-audits-owner-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.saved-audits-owner-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.saved-audits-owner-select {
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 220px;
+}
+
+.saved-audits-owner-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.1rem;
+}
+
+.saved-audits-owner-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.saved-audits-owner-chip {
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-body);
+  font-family: var(--font-mono);
+  font-size: 0.71rem;
+  font-weight: 500;
+  padding: 0.22rem 0.55rem;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 150ms var(--ease-flow), border-color 150ms var(--ease-flow), color 150ms var(--ease-flow);
+}
+
+.saved-audits-owner-chip:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-main);
+}
+
+.saved-audits-owner-chip:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.saved-audits-owner-chip.is-active {
+  background: var(--text-main);
+  color: var(--bg-page);
+  border-color: var(--text-main);
+}
+
+.saved-audit-owner-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+}
+
+.saved-audit-owner-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.saved-audit-owner-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.38rem 0.65rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+}
+
+.saved-audit-owner-group__identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.saved-audit-owner-group__owner {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.saved-audit-owner-group__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.71rem;
+  color: var(--text-muted);
+}
+
+.saved-audit-owner-group__filter-btn {
+  font-size: 0.73rem;
+  flex-shrink: 0;
+}
+
+/* D3.js Score Trend Line Chart inside Saved Audits Drawer */
+.drawer-trend-card {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.drawer-trend-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.drawer-trend-card__title-wrap {
+  min-width: 0;
+}
+
+.drawer-trend-card__title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.drawer-trend-card__sub {
+  margin: 0.12rem 0 0;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.drawer-trend-card__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.drawer-trend-card__select {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.drawer-trend-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.drawer-trend-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.drawer-trend-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.drawer-trend-legend__dot--perf {
+  background: var(--cat-perf, #2563eb);
+}
+
+.drawer-trend-legend__dot--a11y {
+  background: var(--cat-a11y, #10b981);
+}
+
+.drawer-trend-card__chart {
+  width: 100%;
+  min-height: 160px;
+}
+
+.drawer-trend-svg {
+  display: block;
+  overflow: visible;
+}
+
+.drawer-trend-card__readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.73rem;
+  color: var(--text-body);
 }
 
 /* ==========================================================================
@@ -9772,6 +10059,370 @@ a.repo-stat-chip:hover {
   margin: 0;
   font-size: 0.76rem;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   GLOBAL AUDIT DASHBOARD (D3.JS CUMULATIVE MULTI-REPO TIMELINE)
+   ========================================================================== */
+.global-dashboard__select-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.global-dashboard__panel {
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  background: var(--bg-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.global-dashboard__kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.global-kpi-cell {
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  border-right: 1px solid var(--border-hairline);
+}
+
+.global-kpi-cell:last-child {
+  border-right: none;
+}
+
+.global-kpi-cell__label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.global-kpi-cell__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.global-kpi-cell__value--perf {
+  color: var(--cat-perf, #2563eb);
+}
+
+.global-kpi-cell__value--a11y {
+  color: var(--cat-a11y, #10b981);
+}
+
+.global-kpi-cell__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.global-dashboard__chart-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 1.25rem 0.25rem;
+}
+
+.global-dashboard__chart-caption {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.global-dashboard__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-body);
+}
+
+.global-dashboard__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.global-dashboard__swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.global-dashboard__swatch--perf {
+  background: var(--cat-perf, #2563eb);
+}
+
+.global-dashboard__swatch--a11y {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--cat-a11y, #10b981) 0 5px,
+    transparent 5px 8px
+  );
+}
+
+.global-dashboard__chart-host {
+  width: 100%;
+  padding: 0.35rem 1rem 0.45rem;
+  overflow-x: auto;
+}
+
+.global-d3-svg {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+  height: auto;
+}
+
+.global-d3-dot-perf:focus-visible,
+.global-d3-dot-a11y:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.global-dashboard__readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.72rem 1.25rem;
+  border-top: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  font-size: 0.78rem;
+  color: var(--text-body);
+}
+
+.global-dashboard__readout-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.global-dashboard__readout-text strong {
+  color: var(--text-main);
+}
+
+.global-dashboard__contrib-wrap {
+  border-top: 1px solid var(--border-hairline);
+}
+
+.global-dashboard__contrib-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding: 0.85rem 1.25rem 0.65rem;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.global-dashboard__contrib-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.global-dashboard__contrib-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.global-dashboard__contrib-wrap .dashboard-table-wrap {
+  border: none;
+  border-radius: 0;
+}
+
+.global-table__gain-perf {
+  color: var(--cat-perf, #2563eb);
+  font-weight: 700;
+}
+
+.global-table__gain-a11y {
+  color: var(--cat-a11y, #10b981);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .global-dashboard__kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .global-kpi-cell:nth-child(2) {
+    border-right: none;
+  }
+
+  .global-kpi-cell:nth-child(1),
+  .global-kpi-cell:nth-child(2) {
+    border-bottom: 1px solid var(--border-hairline);
+  }
+}
+
+@media (max-width: 560px) {
+  .global-dashboard__kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .global-kpi-cell {
+    border-right: none;
+    border-bottom: 1px solid var(--border-hairline);
+  }
+
+  .global-kpi-cell:last-child {
+    border-bottom: none;
+  }
+}
+
+/* ==========================================================================
+   SAVED AUDITS DRAWER SEARCH & DATE RANGE CONTROLS
+   ========================================================================== */
+.saved-audits-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.saved-audits-search-wrap__icon {
+  position: absolute;
+  left: 0.65rem;
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.saved-audits-drawer__search--with-icon {
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.saved-audits-search-wrap__clear {
+  position: absolute;
+  right: 0.45rem;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.saved-audits-search-wrap__clear:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.saved-audits-search-wrap__clear:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.saved-audits-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.saved-audits-date-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.saved-audits-date-input {
+  padding: 0.24rem 0.45rem;
+  border-radius: 7px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.71rem;
+  max-width: 122px;
+}
+
+.saved-audits-date-input:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.saved-audits-date-sep {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   WORKBOX PWA OFFLINE & UPDATE STATUS BANNER
+   ========================================================================== */
+.pwa-status-banner {
+  max-width: 1120px;
+  margin: 0.65rem auto 0;
+  padding: 0.62rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-body);
+}
+
+.pwa-status-banner--offline {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.pwa-status-banner--update {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: var(--accent-soft);
+}
+
+.pwa-status-banner__copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pwa-status-banner__copy strong {
+  color: var(--text-main);
+}
+
+.pwa-ios-modal {
+  max-width: 440px;
 }
 
 

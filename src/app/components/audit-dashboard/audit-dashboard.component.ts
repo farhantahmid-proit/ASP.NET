@@ -24,6 +24,8 @@ import { StorageService } from '../../services/storage.service';
 import { BusinessUrlAuditComponent } from '../business-url-audit/business-url-audit.component';
 import { AstWorkerScannerComponent } from '../ast-worker-scanner/ast-worker-scanner.component';
 import { LiveAuditSuiteComponent } from '../live-audit-suite/live-audit-suite.component';
+import { GlobalAuditDashboardComponent } from '../global-audit-dashboard/global-audit-dashboard.component';
+import { SrTooltipComponent } from '../sr-tooltip/sr-tooltip.component';
 
 export type AuditCategoryKey =
   | 'performance'
@@ -317,7 +319,13 @@ export function summarizeRecentRepositories(
 @Component({
   selector: 'app-audit-dashboard',
   standalone: true,
-  imports: [BusinessUrlAuditComponent, AstWorkerScannerComponent, LiveAuditSuiteComponent],
+  imports: [
+    BusinessUrlAuditComponent,
+    AstWorkerScannerComponent,
+    LiveAuditSuiteComponent,
+    GlobalAuditDashboardComponent,
+    SrTooltipComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="dashboard-shell" aria-labelledby="dashboard-heading">
@@ -343,22 +351,24 @@ export function summarizeRecentRepositories(
           <button
             type="button"
             id="saved-audits-drawer-button"
-            class="secondary-flow-btn dashboard-action-btn"
+            class="secondary-flow-btn dashboard-action-btn saved-audits-trigger-btn"
             aria-controls="saved-audits-drawer"
             aria-describedby="saved-audits-drawer-tooltip"
             [attr.aria-expanded]="isDrawerOpen()"
-            [attr.aria-label]="'Open Saved Audits drawer to access local audit storage history (' + savedAudits().length + ' saved reports)'"
-            title="Open Saved Audits drawer to access your local audit storage history (JSON, Markdown, and TOON reports)"
+            [attr.aria-label]="'Access local saved audit history in the Saved Audits drawer (' + savedAudits().length + ' saved reports available)'"
+            title="Access your local saved audit history (JSON, TOON, and Markdown reports)"
             (click)="openDrawer.emit()"
           >
             <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
               <path d="M4.5 3.2h9a1.3 1.3 0 0 1 1.3 1.3v10.8l-5.8-3-5.8 3V4.5a1.3 1.3 0 0 1 1.3-1.3z" stroke-linejoin="round" />
             </svg>
-            <span>Saved Audits ({{ savedAudits().length }})</span>
+            <span class="saved-audits-trigger-btn__label">Saved Audits</span>
+            <span class="saved-audits-trigger-btn__count" aria-hidden="true">({{ savedAudits().length }})</span>
           </button>
-          <span id="saved-audits-drawer-tooltip" role="tooltip" class="sr-only">
-            Opens the Saved Audits drawer to access, search, filter, import, export, or restore your local audit storage history stored in IndexedDB, LocalStorage, and local JSON, Markdown, or TOON files.
-          </span>
+          <app-sr-tooltip
+            tooltipId="saved-audits-drawer-tooltip"
+            text="Opens the Saved Audits drawer to access, group by GitHub organization, compare multi-run score trends, import, export, or restore your local saved audit history stored in IndexedDB, LocalStorage, and local JSON, TOON, or Markdown files."
+          />
           <label
             class="secondary-flow-btn dashboard-action-btn saved-audits-import-label"
             title="Load a local saved audit file (.toon, .json, or .md)"
@@ -531,6 +541,14 @@ export function summarizeRecentRepositories(
           <span class="dashboard-kpi-cell__meta">Perf pts · A11y pts</span>
         </div>
       </div>
+
+      <!-- Global Audit Dashboard (D3.js Cumulative Performance & Accessibility Across All Repositories) -->
+      <app-global-audit-dashboard
+        [savedAudits]="sortedAudits()"
+        (openSavedAudit)="openSavedAudit.emit($event)"
+        (exportAllJson)="exportAllJson.emit()"
+        (loadSampleAudits)="loadSampleAudits.emit()"
+      />
 
       <!-- Body Content Based on Auth / Loading / Saved State -->
       @if (!userSession().isAuthReady && savedAudits().length === 0) {
@@ -1066,6 +1084,7 @@ export class AuditDashboardComponent {
   readonly autoCompare = output<void>();
   readonly openDrawer = output<void>();
   readonly importFile = output<{ filename: string; content: string }>();
+  readonly exportAllJson = output<void>();
   readonly loadSampleAudits = output<void>();
   readonly openPushTroubleshooter = output<void>();
   readonly signInGithub = output<void>();

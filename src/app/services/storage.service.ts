@@ -393,13 +393,26 @@ export class StorageService {
   }
 
   /**
-   * Parses raw JSON, Markdown, or TOON audit content and stores it in both
-   * IndexedDB and localStorage offline history.
+   * Parses raw JSON (single record or consolidated backup bundle), Markdown, or TOON
+   * audit content and stores all imported records in IndexedDB and localStorage offline history.
    */
   readAuditFileContent(filename: string, content: string): LocalSavedAuditRecord {
-    const parsed = this.localAuditStorage.importAuditFile(filename, content);
-    void this.saveAuditToIndexedDb(parsed);
-    return parsed;
+    const imported = this.localAuditStorage.importAuditFileRecords(filename, content);
+    for (const rec of imported) {
+      void this.saveAuditToIndexedDb(rec);
+    }
+    return imported[0];
+  }
+
+  /**
+   * Exports the full Saved Audits history (or supplied merged local + cloud array)
+   * as a single consolidated JSON backup report for offline analysis.
+   */
+  async exportConsolidatedAuditHistoryJson(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): Promise<{ success: boolean; filename: string; totalCount: number }> {
+    const targetRecords = records && records.length > 0 ? records : this.offlineAuditHistory();
+    return this.localAuditStorage.exportFullHistoryToDeviceJson(targetRecords);
   }
 
   /**

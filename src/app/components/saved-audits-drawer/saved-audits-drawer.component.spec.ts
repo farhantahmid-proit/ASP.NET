@@ -1,8 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import {
   SavedAuditsDrawerComponent,
-  filterSavedAuditRecords
+  extractRepoOwner,
+  filterSavedAuditRecords,
+  groupSavedAuditsByOwner
 } from './saved-audits-drawer.component';
+import { buildRepositoryTrendSeries } from './saved-audit-trend-chart.component';
+import {
+  parseLocalAuditRecords,
+  serializeConsolidatedAuditHistoryJson
+} from '../../services/local-audit-storage.service';
 import { LocalSavedAuditRecord, UserSessionState } from '../../models/audit.model';
 
 const SIGNED_OUT_USER_SESSION: UserSessionState = {
@@ -212,5 +219,187 @@ describe('SavedAuditsDrawerComponent', () => {
 
     fixture.componentInstance.onEscapeKey();
     expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('filters and groups saved audits by GitHub organization or repository owner', () => {
+    const multiOrgAudits: LocalSavedAuditRecord[] = [
+      ...MOCK_LOCAL_AUDITS,
+      {
+        ...MOCK_LOCAL_AUDITS[0],
+        auditId: 'local-audit-3',
+        repoFullName: 'acme/design-system',
+        updatedAtIso: '2026-10-06T11:00:00.000Z',
+        createdAtIso: '2026-10-06T11:00:00.000Z'
+      }
+    ];
+
+    expect(extractRepoOwner(multiOrgAudits[0])).toBe('acme');
+    expect(extractRepoOwner(multiOrgAudits[1])).toBe('fresnel-sandbox');
+
+    const acmeOnly = filterSavedAuditRecords(multiOrgAudits, '', 'all', 'date-desc', 'all', 'acme');
+    expect(acmeOnly.map((r) => r.auditId)).toEqual(['local-audit-3', 'local-audit-1']);
+
+    const groups = groupSavedAuditsByOwner(multiOrgAudits, 'date-desc');
+    expect(groups.map((g) => g.owner)).toEqual(['acme', 'fresnel-sandbox']);
+    expect(groups[0].count).toBe(2);
+    expect(groups[0].repoCount).toBe(2);
+
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', multiOrgAudits);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const ownerSelect: HTMLSelectElement | null =
+      fixture.nativeElement.querySelector('#drawer-owner-filter');
+    expect(ownerSelect).not.toBeNull();
+    if (ownerSelect) {
+      ownerSelect.value = 'acme';
+      ownerSelect.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    }
+
+    const renderedRepos = Array.from(
+      fixture.nativeElement.querySelectorAll('.saved-audit-card__repo') as NodeListOf<HTMLElement>
+    ).map((el) => (el.textContent || '').trim());
+    expect(renderedRepos).toEqual(['acme/design-system', 'acme/web-portal']);
+  });
+
+  it('renders a D3.js trend line chart for Performance and Accessibility across multiple runs of a repository', () => {
+    const multiRunAudits: LocalSavedAuditRecord[] = [
+      {
+        ...MOCK_LOCAL_AUDITS[0],
+        auditId: 'acme-run-1',
+        performanceBefore: 58,
+        performanceAfter: 78,
+        accessibilityBefore: 66,
+        accessibilityAfter: 82,
+        updatedAtIso: '2026-10-01T08:00:00.000Z',
+        createdAtIso: '2026-10-01T08:00:00.000Z'
+      },
+      {
+        ...MOCK_LOCAL_AUDITS[0],
+        auditId: 'acme-run-2',
+        performanceBefore: 70,
+        performanceAfter: 94,
+        accessibilityBefore: 78,
+        accessibilityAfter: 96,
+        updatedAtIso: '2026-10-08T08:00:00.000Z',
+        createdAtIso: '2026-10-08T08:00:00.000Z'
+      }
+    ];
+
+    const series = buildRepositoryTrendSeries(multiRunAudits, 'acme/web-portal');
+    expect(series.length).toBe(2);
+    expect(series[0].performanceAfter).toBe(78);
+    expect(series[1].performanceAfter).toBe(94);
+
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', multiRunAudits);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const perfPath = fixture.nativeElement.querySelector(
+      '#drawer-d3-trend-chart svg path.drawer-trend-line--perf'
+    );
+    const a11yPath = fixture.nativeElement.querySelector(
+      '#drawer-d3-trend-chart svg path.drawer-trend-line--a11y'
+    );
+    expect(perfPath).not.toBeNull();
+    expect(a11yPath).not.toBeNull();
+  });
+
+  it('exports full Saved Audits history as a consolidated JSON report and supports round-trip re-import', () => {
+    const jsonPayload = serializeConsolidatedAuditHistoryJson(MOCK_LOCAL_AUDITS);
+    const parsedBundle = JSON.parse(jsonPayload);
+
+    expect(parsedBundle.format).toBe('fresnel-audit-history-bundle/v1');
+    expect(parsedBundle.summary.totalAudits).toBe(2);
+    expect(parsedBundle.summary.uniqueRepositories).toBe(2);
+    expect(parsedBundle.summary.cumulativePerformanceLift).toBe(50); // (91-64) + (95-72) = 27 + 23
+    expect(parsedBundle.summary.cumulativeAccessibilityLift).toBe(45); // (94-70) + (97-76) = 24 + 21
+    expect(parsedBundle.records.length).toBe(2);
+
+    const restored = parseLocalAuditRecords('fresnel-saved-audits-history-backup.json', jsonPayload);
+    expect(restored.length).toBe(2);
+    expect(restored.map((r) => r.repoFullName)).toEqual([
+      'fresnel-sandbox/lumina-web-app',
+      'acme/web-portal'
+    ]);
+
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', MOCK_LOCAL_AUDITS);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const exportAllSpy = jasmine.createSpy('exportAllJson');
+    fixture.componentInstance.exportAllJson.subscribe(exportAllSpy);
+
+    const exportAllBtn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
+      '#drawer-export-all-json-btn'
+    );
+    expect(exportAllBtn).not.toBeNull();
+    exportAllBtn?.click();
+    expect(exportAllSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('filters saved audits by URL keyword, inline date range syntax, and From/To date inputs', () => {
+    const customUrlAudits: LocalSavedAuditRecord[] = [
+      {
+        ...MOCK_LOCAL_AUDITS[0],
+        auditId: 'url-audit-1',
+        repoFullName: 'enterprise/checkout-portal',
+        repoUrl: 'https://git.enterprise-corp.io/payments/checkout-portal',
+        updatedAtIso: '2026-10-02T10:00:00.000Z',
+        createdAtIso: '2026-10-02T10:00:00.000Z'
+      },
+      {
+        ...MOCK_LOCAL_AUDITS[1],
+        auditId: 'url-audit-2',
+        repoFullName: 'fresnel-sandbox/lumina-web-app',
+        repoUrl: 'https://github.com/fresnel-sandbox/lumina-web-app',
+        updatedAtIso: '2026-10-18T15:30:00.000Z',
+        createdAtIso: '2026-10-18T15:30:00.000Z'
+      }
+    ];
+
+    // Match by URL keyword (domain / path not present in repoFullName)
+    const byUrlKeyword = filterSavedAuditRecords(customUrlAudits, 'enterprise-corp.io/payments', 'all');
+    expect(byUrlKeyword.map((r) => r.auditId)).toEqual(['url-audit-1']);
+
+    // Match by inline date range token inside the search query
+    const byInlineRange = filterSavedAuditRecords(
+      customUrlAudits,
+      '2026-10-10..2026-10-25',
+      'all'
+    );
+    expect(byInlineRange.map((r) => r.auditId)).toEqual(['url-audit-2']);
+
+    // Match by explicit From / To date range inputs in the drawer component
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', customUrlAudits);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const fromInput: HTMLInputElement | null = fixture.nativeElement.querySelector('#drawer-date-from');
+    const toInput: HTMLInputElement | null = fixture.nativeElement.querySelector('#drawer-date-to');
+    expect(fromInput).not.toBeNull();
+    expect(toInput).not.toBeNull();
+
+    if (fromInput && toInput) {
+      fromInput.value = '2026-10-01';
+      fromInput.dispatchEvent(new Event('change'));
+      toInput.value = '2026-10-05';
+      toInput.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    }
+
+    const renderedRepos = Array.from(
+      fixture.nativeElement.querySelectorAll('.saved-audit-card__repo') as NodeListOf<HTMLElement>
+    ).map((el) => (el.textContent || '').trim());
+    expect(renderedRepos).toEqual(['enterprise/checkout-portal']);
   });
 });

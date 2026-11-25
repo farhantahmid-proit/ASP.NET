@@ -328,6 +328,63 @@ export function buildLocalSavedAuditRecord(
   };
 }
 
+export interface ConsolidatedRepoSummary {
+  repoFullName: string;
+  owner: string;
+  repoUrl: string;
+  runCount: number;
+  latestAuditIso: string;
+  earliestAuditIso: string;
+  cumulativePerformanceLift: number;
+  cumulativeAccessibilityLift: number;
+  latestPerformanceBefore: number;
+  latestPerformanceAfter: number;
+  latestAccessibilityBefore: number;
+  latestAccessibilityAfter: number;
+}
+
+export interface ConsolidatedAuditHistoryReport {
+  format: 'fresnel-audit-history-bundle/v1';
+  exportedAtIso: string;
+  summary: {
+    totalAudits: number;
+    uniqueRepositories: number;
+    uniqueOwners: number;
+    avgPerformanceBefore: number;
+    avgPerformanceAfter: number;
+    avgPerformanceLift: number;
+    cumulativePerformanceLift: number;
+    avgAccessibilityBefore: number;
+    avgAccessibilityAfter: number;
+    avgAccessibilityLift: number;
+    cumulativeAccessibilityLift: number;
+    totalCommitsSelected: number;
+    dateRange: {
+      earliestIso: string | null;
+      latestIso: string | null;
+    };
+  };
+  repositories: ConsolidatedRepoSummary[];
+  records: LocalSavedAuditRecord[];
+}
+
+export function toNormalizedLocalRecord(
+  record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+): LocalSavedAuditRecord {
+  if ('storageSource' in record) {
+    return {
+      ...record,
+      savedFormat: record.savedFormat || 'json'
+    };
+  }
+  return {
+    ...record,
+    storageSource: 'firestore',
+    savedFormat: 'json',
+    snapshotSession: buildSynthesizedSessionFromRecord(record)
+  };
+}
+
 export function serializeAuditToJson(record: LocalSavedAuditRecord): string {
   const payload = {
     format: 'fresnel-audit-json/v1',
@@ -338,6 +395,132 @@ export function serializeAuditToJson(record: LocalSavedAuditRecord): string {
     }
   };
   return JSON.stringify(payload, null, 2);
+}
+
+export function buildConsolidatedAuditHistoryReport(
+  records: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+): ConsolidatedAuditHistoryReport {
+  const normalized = records
+    .map((rec) => toNormalizedLocalRecord(rec))
+    .sort((a, b) => {
+      const tA = new Date(a.updatedAtIso || a.createdAtIso || 0).getTime();
+      const tB = new Date(b.updatedAtIso || b.createdAtIso || 0).getTime();
+      return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0);
+    });
+
+  const owners = new Set<string>();
+  const repoMap = new Map<string, ConsolidatedRepoSummary>();
+
+  let sumPerfBefore = 0;
+  let sumPerfAfter = 0;
+  let cumulativePerfLift = 0;
+  let sumA11yBefore = 0;
+  let sumA11yAfter = 0;
+  let cumulativeA11yLift = 0;
+  let totalCommitsSelected = 0;
+  let earliestMs = Number.POSITIVE_INFINITY;
+  let latestMs = Number.NEGATIVE_INFINITY;
+  let earliestIso: string | null = null;
+  let latestIso: string | null = null;
+
+  for (const rec of normalized) {
+    const repoName = (rec.repoFullName || 'owner/repository').trim();
+    const owner = repoName.includes('/') ? repoName.split('/')[0].trim() || 'ungrouped' : 'ungrouped';
+    owners.add(owner.toLowerCase());
+
+    const perfBefore = clampScore(rec.performanceBefore, 0);
+    const perfAfter = clampScore(rec.performanceAfter, 0);
+    const a11yBefore = clampScore(rec.accessibilityBefore, 0);
+    const a11yAfter = clampScore(rec.accessibilityAfter, 0);
+    const perfLift = Math.max(0, perfAfter - perfBefore);
+    const a11yLift = Math.max(0, a11yAfter - a11yBefore);
+
+    sumPerfBefore += perfBefore;
+    sumPerfAfter += perfAfter;
+    cumulativePerfLift += perfLift;
+    sumA11yBefore += a11yBefore;
+    sumA11yAfter += a11yAfter;
+    cumulativeA11yLift += a11yLift;
+    totalCommitsSelected += Math.max(0, rec.selectedCommitsCount || 0);
+
+    const recIso = rec.updatedAtIso || rec.createdAtIso || new Date().toISOString();
+    const ts = new Date(recIso).getTime();
+    if (Number.isFinite(ts)) {
+      if (ts < earliestMs) {
+        earliestMs = ts;
+        earliestIso = recIso;
+      }
+      if (ts > latestMs) {
+        latestMs = ts;
+        latestIso = recIso;
+      }
+    }
+
+    const repoKey = repoName.toLowerCase();
+    const existing = repoMap.get(repoKey);
+    if (!existing) {
+      repoMap.set(repoKey, {
+        repoFullName: repoName,
+        owner,
+        repoUrl: rec.repoUrl,
+        runCount: 1,
+        latestAuditIso: recIso,
+        earliestAuditIso: recIso,
+        cumulativePerformanceLift: perfLift,
+        cumulativeAccessibilityLift: a11yLift,
+        latestPerformanceBefore: perfBefore,
+        latestPerformanceAfter: perfAfter,
+        latestAccessibilityBefore: a11yBefore,
+        latestAccessibilityAfter: a11yAfter
+      });
+    } else {
+      existing.runCount += 1;
+      existing.cumulativePerformanceLift += perfLift;
+      existing.cumulativeAccessibilityLift += a11yLift;
+      if (Number.isFinite(ts) && ts < new Date(existing.earliestAuditIso).getTime()) {
+        existing.earliestAuditIso = recIso;
+      }
+    }
+  }
+
+  const count = normalized.length;
+  const repositories = Array.from(repoMap.values()).sort(
+    (a, b) =>
+      b.cumulativePerformanceLift +
+      b.cumulativeAccessibilityLift -
+      (a.cumulativePerformanceLift + a.cumulativeAccessibilityLift)
+  );
+
+  return {
+    format: 'fresnel-audit-history-bundle/v1',
+    exportedAtIso: new Date().toISOString(),
+    summary: {
+      totalAudits: count,
+      uniqueRepositories: repositories.length,
+      uniqueOwners: owners.size,
+      avgPerformanceBefore: count > 0 ? Math.round(sumPerfBefore / count) : 0,
+      avgPerformanceAfter: count > 0 ? Math.round(sumPerfAfter / count) : 0,
+      avgPerformanceLift: count > 0 ? Math.round(cumulativePerfLift / count) : 0,
+      cumulativePerformanceLift: cumulativePerfLift,
+      avgAccessibilityBefore: count > 0 ? Math.round(sumA11yBefore / count) : 0,
+      avgAccessibilityAfter: count > 0 ? Math.round(sumA11yAfter / count) : 0,
+      avgAccessibilityLift: count > 0 ? Math.round(cumulativeA11yLift / count) : 0,
+      cumulativeAccessibilityLift: cumulativeA11yLift,
+      totalCommitsSelected,
+      dateRange: {
+        earliestIso,
+        latestIso
+      }
+    },
+    repositories,
+    records: normalized
+  };
+}
+
+export function serializeConsolidatedAuditHistoryJson(
+  records: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+): string {
+  return JSON.stringify(buildConsolidatedAuditHistoryReport(records), null, 2);
 }
 
 export function serializeAuditToToon(record: LocalSavedAuditRecord): string {
@@ -540,12 +723,40 @@ function normalizeParsedRecord(
   return baseRecord;
 }
 
-function parseJsonAudit(rawContent: string): LocalSavedAuditRecord {
-  const parsed = JSON.parse(rawContent) as Record<string, unknown>;
+function parseJsonAuditRecords(rawContent: string): LocalSavedAuditRecord[] {
+  const parsed = JSON.parse(rawContent) as unknown;
+
+  // Support consolidated history bundle (`fresnel-audit-history-bundle/v1`) or raw array of audit records
+  const rawList: unknown[] | null = Array.isArray(parsed)
+    ? parsed
+    : parsed &&
+        typeof parsed === 'object' &&
+        'records' in parsed &&
+        Array.isArray((parsed as Record<string, unknown>)['records'])
+      ? ((parsed as Record<string, unknown>)['records'] as unknown[])
+      : null;
+
+  if (rawList) {
+    const valid: LocalSavedAuditRecord[] = [];
+    for (const item of rawList) {
+      if (!item || typeof item !== 'object') continue;
+      const candidate = item as Partial<LocalSavedAuditRecord>;
+      const repoFullName =
+        candidate.repoFullName || candidate.snapshotSession?.repo?.fullName || '';
+      if (!repoFullName) continue;
+      valid.push(normalizeParsedRecord({ ...candidate, repoFullName }, 'json'));
+    }
+    if (valid.length === 0) {
+      throw new Error('Consolidated JSON bundle does not contain any valid Fresnel audit records.');
+    }
+    return valid;
+  }
+
+  const obj = parsed as Record<string, unknown>;
   const candidate =
-    parsed && typeof parsed === 'object' && 'record' in parsed && parsed['record'] && typeof parsed['record'] === 'object'
-      ? (parsed['record'] as Partial<LocalSavedAuditRecord>)
-      : (parsed as Partial<LocalSavedAuditRecord>);
+    obj && typeof obj === 'object' && 'record' in obj && obj['record'] && typeof obj['record'] === 'object'
+      ? (obj['record'] as Partial<LocalSavedAuditRecord>)
+      : (obj as Partial<LocalSavedAuditRecord>);
 
   if (!candidate || (!candidate.repoFullName && !candidate.snapshotSession?.repo?.fullName)) {
     throw new Error('JSON file does not contain a valid Fresnel audit record.');
@@ -553,7 +764,11 @@ function parseJsonAudit(rawContent: string): LocalSavedAuditRecord {
 
   const repoFullName =
     candidate.repoFullName || candidate.snapshotSession?.repo?.fullName || 'owner/repository';
-  return normalizeParsedRecord({ ...candidate, repoFullName }, 'json');
+  return [normalizeParsedRecord({ ...candidate, repoFullName }, 'json')];
+}
+
+function parseJsonAudit(rawContent: string): LocalSavedAuditRecord {
+  return parseJsonAuditRecords(rawContent)[0];
 }
 
 function parseToonAudit(rawContent: string): LocalSavedAuditRecord {
@@ -820,17 +1035,24 @@ function parseMarkdownAudit(rawContent: string): LocalSavedAuditRecord {
   );
 }
 
-export function parseLocalAuditFile(
+export function parseLocalAuditRecords(
   filename: string,
   rawContent: string
-): LocalSavedAuditRecord {
+): LocalSavedAuditRecord[] {
   if (!rawContent || !rawContent.trim()) {
     throw new Error('Selected audit file is empty.');
   }
   const format = detectAuditFormat(filename, rawContent);
-  if (format === 'json') return parseJsonAudit(rawContent);
-  if (format === 'toon') return parseToonAudit(rawContent);
-  return parseMarkdownAudit(rawContent);
+  if (format === 'json') return parseJsonAuditRecords(rawContent);
+  if (format === 'toon') return [parseToonAudit(rawContent)];
+  return [parseMarkdownAudit(rawContent)];
+}
+
+export function parseLocalAuditFile(
+  filename: string,
+  rawContent: string
+): LocalSavedAuditRecord {
+  return parseLocalAuditRecords(filename, rawContent)[0];
 }
 
 @Injectable({
@@ -934,19 +1156,92 @@ export class LocalAuditStorageService {
     this.writeToStorage(next);
   }
 
+  importAuditFileRecords(filename: string, rawContent: string): LocalSavedAuditRecord[] {
+    const parsedRecords = parseLocalAuditRecords(filename, rawContent);
+    for (const rec of [...parsedRecords].reverse()) {
+      this.upsertRecord(rec);
+    }
+    if (parsedRecords.length > 1) {
+      this.showNotice(
+        `Imported ${parsedRecords.length} audits from consolidated JSON backup (${filename}).`
+      );
+    } else if (parsedRecords.length === 1) {
+      this.showNotice(
+        `Imported ${parsedRecords[0].repoFullName} from ${parsedRecords[0].savedFormat.toUpperCase()} file.`
+      );
+    }
+    return parsedRecords;
+  }
+
   importAuditFile(filename: string, rawContent: string): LocalSavedAuditRecord {
-    const parsed = parseLocalAuditFile(filename, rawContent);
-    this.upsertRecord(parsed);
-    this.showNotice(
-      `Imported ${parsed.repoFullName} from ${parsed.savedFormat.toUpperCase()} file.`
-    );
-    return parsed;
+    return this.importAuditFileRecords(filename, rawContent)[0];
   }
 
   deleteLocalAudit(auditId: string): void {
     const next = this.localAudits().filter((r) => r.auditId !== auditId);
     this.localAudits.set(next);
     this.writeToStorage(next);
+  }
+
+  exportConsolidatedHistoryPayload(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): { filename: string; content: string; mimeType: string; totalCount: number } {
+    const source = records ?? this.localAudits();
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `fresnel-saved-audits-history-${stamp}.json`,
+      content: serializeConsolidatedAuditHistoryJson(source),
+      mimeType: 'application/json;charset=utf-8',
+      totalCount: source.length
+    };
+  }
+
+  async exportFullHistoryToDeviceJson(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): Promise<{ success: boolean; filename: string; totalCount: number }> {
+    const payload = this.exportConsolidatedHistoryPayload(records);
+    if (typeof window === 'undefined') {
+      return { success: false, filename: payload.filename, totalCount: payload.totalCount };
+    }
+
+    try {
+      if (this.isFileSystemAccessSupported()) {
+        const fileHandle = await (window as unknown as {
+          showSaveFilePicker: (opts: unknown) => Promise<{
+            createWritable: () => Promise<{
+              write: (data: string) => Promise<void>;
+              close: () => Promise<void>;
+            }>;
+          }>;
+        }).showSaveFilePicker({
+          suggestedName: payload.filename,
+          types: [
+            {
+              description: 'Fresnel Consolidated Audit History (.json)',
+              accept: { 'application/json': ['.json'] }
+            }
+          ]
+        });
+
+        const writable = await fileHandle.createWritable();
+        await writable.write(payload.content);
+        await writable.close();
+        this.showNotice(
+          `Exported ${payload.totalCount} saved ${payload.totalCount === 1 ? 'audit' : 'audits'} to ${payload.filename}.`
+        );
+        return { success: true, filename: payload.filename, totalCount: payload.totalCount };
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { success: false, filename: payload.filename, totalCount: payload.totalCount };
+      }
+    }
+
+    this.downloadPayloadAsFile(payload.filename, payload.content, payload.mimeType);
+    this.showNotice(
+      `Exported consolidated JSON backup (${payload.totalCount} ${payload.totalCount === 1 ? 'audit' : 'audits'}): ${payload.filename}`
+    );
+    return { success: true, filename: payload.filename, totalCount: payload.totalCount };
   }
 
   exportRecordPayload(
@@ -991,10 +1286,25 @@ export class LocalAuditStorageService {
 
   seedSampleAuditsIfEmpty(force = false): LocalSavedAuditRecord[] {
     const current = this.localAudits();
+    const samples = buildDefaultSampleAudits();
+
     if (current.length > 0 && !force) {
+      const hasLegacyLuminaSample = current.some(
+        (r) => r.auditId === 'local_sample_lumina_store_json'
+      );
+      if (hasLegacyLuminaSample) {
+        const existingIds = new Set(current.map((r) => r.auditId));
+        const missingHistory = samples.filter((s) => !existingIds.has(s.auditId));
+        if (missingHistory.length > 0) {
+          const merged = [...current, ...missingHistory].slice(0, MAX_LOCAL_AUDITS);
+          this.localAudits.set(merged);
+          this.writeToStorage(merged);
+          return merged;
+        }
+      }
       return current;
     }
-    const samples = buildDefaultSampleAudits();
+
     this.localAudits.set(samples);
     this.writeToStorage(samples);
     this.showNotice('Loaded sample saved audits across JSON, TOON, and Markdown formats.');
@@ -2368,5 +2678,75 @@ export function buildDefaultSampleAudits(): LocalSavedAuditRecord[] {
   };
   sample3.snapshotSession = buildSynthesizedSessionFromRecord(sample3, remixCommits);
 
-  return [sample1, sample2, sample3];
+  const date4 = new Date(now - 1000 * 60 * 60 * 52).toISOString();
+  const date5 = new Date(now - 1000 * 60 * 60 * 96).toISOString();
+  const date6 = new Date(now - 1000 * 60 * 60 * 72).toISOString();
+
+  const sample4: LocalSavedAuditRecord = {
+    ...sample1,
+    auditId: 'local_sample_lumina_store_run2',
+    branch: 'release/v1.4',
+    runPhase: 'lhr',
+    performanceBefore: 61,
+    performanceAfter: 84,
+    accessibilityBefore: 66,
+    accessibilityAfter: 88,
+    bestPracticesBefore: 72,
+    bestPracticesAfter: 89,
+    seoBefore: 70,
+    seoAfter: 91,
+    securityBefore: 64,
+    securityAfter: 86,
+    summaryNotes: 'Lumina store release/v1.4 LHR follow-up run: hero image preload improved LCP while minor contrast regressions surfaced on checkout badges.',
+    createdAtIso: date4,
+    updatedAtIso: date4,
+    snapshotSession: null
+  };
+  sample4.snapshotSession = buildSynthesizedSessionFromRecord(sample4, luminaCommits.slice(0, 12));
+
+  const sample5: LocalSavedAuditRecord = {
+    ...sample1,
+    auditId: 'local_sample_lumina_store_run1',
+    branch: 'release/v1.3',
+    runPhase: 'static',
+    performanceBefore: 52,
+    performanceAfter: 76,
+    accessibilityBefore: 60,
+    accessibilityAfter: 81,
+    bestPracticesBefore: 68,
+    bestPracticesAfter: 84,
+    seoBefore: 68,
+    seoAfter: 86,
+    securityBefore: 60,
+    securityAfter: 82,
+    summaryNotes: 'Lumina store initial baseline audit on release/v1.3 establishing Performance and Accessibility benchmark scores.',
+    createdAtIso: date5,
+    updatedAtIso: date5,
+    snapshotSession: null
+  };
+  sample5.snapshotSession = buildSynthesizedSessionFromRecord(sample5, luminaCommits.slice(0, 10));
+
+  const sample6: LocalSavedAuditRecord = {
+    ...sample2,
+    auditId: 'local_sample_phoenix_saas_run1',
+    branch: 'release/v2.1',
+    runPhase: 'static',
+    performanceBefore: 55,
+    performanceAfter: 82,
+    accessibilityBefore: 64,
+    accessibilityAfter: 85,
+    bestPracticesBefore: 74,
+    bestPracticesAfter: 88,
+    seoBefore: 72,
+    seoAfter: 89,
+    securityBefore: 66,
+    securityAfter: 86,
+    summaryNotes: 'Phoenix SaaS dashboard earlier baseline run prior to chart virtualization and ARIA table remediation.',
+    createdAtIso: date6,
+    updatedAtIso: date6,
+    snapshotSession: null
+  };
+  sample6.snapshotSession = buildSynthesizedSessionFromRecord(sample6, phoenixCommits.slice(0, 10));
+
+  return [sample1, sample2, sample3, sample4, sample6, sample5];
 }

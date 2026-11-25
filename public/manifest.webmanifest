@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "Fresnel — Web Quality & Audit Workbench",
+  "short_name": "Fresnel",
+  "description": "Zero-AI open-source repository audit workbench with offline Saved Audits history, AST codemods, and Lighthouse analytics.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#2563eb",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

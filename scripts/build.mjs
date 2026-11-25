@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { generateSW } from 'workbox-build';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.join(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist', 'fresnel');
+const DIST_BROWSER_DIR = path.join(DIST_DIR, 'browser');
 const DIST_SERVER_DIR = path.join(DIST_DIR, 'server');
 
 function copyDirRecursive(srcDir, destDir) {
@@ -23,7 +25,93 @@ function copyDirRecursive(srcDir, destDir) {
   }
 }
 
-function buildApp() {
+async function buildWorkboxServiceWorker() {
+  if (!fs.existsSync(DIST_BROWSER_DIR)) {
+    return;
+  }
+  const { count, size, warnings } = await generateSW({
+    globDirectory: DIST_BROWSER_DIR,
+    globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest}'],
+    globIgnores: ['sw.js', 'workbox-*.js', '**/*.map'],
+    swDest: path.join(DIST_BROWSER_DIR, 'sw.js'),
+    maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+    clientsClaim: true,
+    skipWaiting: true,
+    cleanupOutdatedCaches: true,
+    sourcemap: false,
+    navigateFallback: '/index.html',
+    navigateFallbackDenylist: [/^\/api\//],
+    runtimeCaching: [
+      {
+        urlPattern: ({ url }) => url.pathname.startsWith('/offline-audits/'),
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'fresnel-saved-audits-offline-v1',
+          expiration: {
+            maxEntries: 120,
+            maxAgeSeconds: 60 * 60 * 24 * 90
+          },
+          cacheableResponse: {
+            statuses: [0, 200]
+          }
+        }
+      },
+      {
+        urlPattern: ({ url, request }) =>
+          request.method === 'GET' && url.pathname.startsWith('/api/audit/'),
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'fresnel-audit-reports-api-v1',
+          networkTimeoutSeconds: 4,
+          expiration: {
+            maxEntries: 60,
+            maxAgeSeconds: 60 * 60 * 24 * 30
+          },
+          cacheableResponse: {
+            statuses: [0, 200]
+          }
+        }
+      },
+      {
+        urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'google-fonts-cache',
+          expiration: {
+            maxEntries: 10,
+            maxAgeSeconds: 60 * 60 * 24 * 365
+          },
+          cacheableResponse: {
+            statuses: [0, 200]
+          }
+        }
+      },
+      {
+        urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'gstatic-fonts-cache',
+          expiration: {
+            maxEntries: 10,
+            maxAgeSeconds: 60 * 60 * 24 * 365
+          },
+          cacheableResponse: {
+            statuses: [0, 200]
+          }
+        }
+      }
+    ]
+  });
+
+  if (warnings.length > 0) {
+    console.warn('[Workbox] Build warnings:', warnings.join('\n'));
+  }
+  console.log(
+    `[Workbox] Generated sw.js precaching ${count} assets (${Math.round(size / 1024)} KB) for offline Saved Audits support.`
+  );
+}
+
+async function buildApp() {
   const angularJsonPath = path.join(ROOT_DIR, 'angular.json');
   const angularConfig = JSON.parse(fs.readFileSync(angularJsonPath, 'utf-8'));
 
@@ -55,6 +143,9 @@ function buildApp() {
   if (buildStatus !== 0) {
     process.exit(buildStatus);
   }
+
+  // Generate Workbox offline service worker into dist/fresnel/browser/sw.js
+  await buildWorkboxServiceWorker();
 
   // Persist phantom-gdemo-1 non-secret runtime configuration into server/runtime-env.json.
   // Secrets (GEMINI_API_KEY) are never written to disk; the server reads them from process.env only.
@@ -95,4 +186,7 @@ startFresnelServer(port, host);
   fs.writeFileSync(path.join(DIST_SERVER_DIR, 'server.mjs'), serverMjsContent, 'utf-8');
 }
 
-buildApp();
+buildApp().catch((err) => {
+  console.error('[Build] Failed:', err);
+  process.exit(1);
+});

@@ -15,6 +15,7 @@ import { AuthService } from './services/auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { GitPushDiagnosticService } from './services/git-push-diagnostic.service';
 import { LocalAuditStorageService } from './services/local-audit-storage.service';
+import { PwaOfflineService } from './services/pwa-offline.service';
 import { StorageService } from './services/storage.service';
 import { FresnelLogoComponent } from './components/fresnel-logo/fresnel-logo.component';
 import { ImpactRadarChartComponent } from './components/impact-radar-chart/impact-radar-chart.component';
@@ -26,6 +27,10 @@ import { SavedAuditsDrawerComponent } from './components/saved-audits-drawer/sav
 import { GithubSshGuideComponent } from './components/github-ssh-guide/github-ssh-guide.component';
 import { GitPushFailureModalComponent } from './components/git-push-failure-modal/git-push-failure-modal.component';
 import { GoogleIdentityButtonComponent } from './components/google-identity-button/google-identity-button.component';
+import {
+  PwaInstallButtonComponent,
+  PwaOfflineBannerComponent
+} from './components/pwa-install-banner/pwa-install-banner.component';
 import {
   CachedRepositoryAuditEntry,
   GitHubRepoIssue,
@@ -56,7 +61,9 @@ export interface CategoryTabItem {
     SavedAuditsDrawerComponent,
     GithubSshGuideComponent,
     GitPushFailureModalComponent,
-    GoogleIdentityButtonComponent
+    GoogleIdentityButtonComponent,
+    PwaInstallButtonComponent,
+    PwaOfflineBannerComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
@@ -74,6 +81,7 @@ export class AppComponent {
   readonly fbAuth = inject(FirebaseAuthService);
   readonly gitPushDiagnostic = inject(GitPushDiagnosticService);
   readonly localAuditStorage = inject(LocalAuditStorageService);
+  readonly pwaOffline = inject(PwaOfflineService);
   readonly storageService = inject(StorageService);
   readonly repoUrl = signal<string>('');
   readonly drawerImportError = signal<string | null>(null);
@@ -115,8 +123,16 @@ export class AppComponent {
 
   constructor() {
     if (typeof window !== 'undefined' && this.localAuditStorage.localAudits().length === 0) {
-      this.localAuditStorage.seedSampleAuditsIfEmpty();
+      void this.hydrateOrSeedSavedAudits();
     }
+
+    // Mirror saved audits into Workbox Cache Storage whenever history changes for zero-network offline viewing
+    effect(() => {
+      const saved = this.allSavedAudits();
+      if (typeof window !== 'undefined' && saved.length > 0) {
+        void this.pwaOffline.cacheSavedAuditsForOffline(saved);
+      }
+    });
 
     effect(() => {
       const repoMeta = this.audit.session()?.repo;
@@ -133,6 +149,15 @@ export class AppComponent {
         this.shortcutNoticeTimer = null;
       }
     });
+  }
+
+  private async hydrateOrSeedSavedAudits(): Promise<void> {
+    const cached = await this.pwaOffline.readCachedAuditsFromOfflineCache();
+    if (cached.length > 0) {
+      this.localAuditStorage.replaceAllLocalAudits(cached);
+      return;
+    }
+    this.localAuditStorage.seedSampleAuditsIfEmpty();
   }
 
   private showShortcutNotice(message: string): void {
@@ -662,6 +687,10 @@ export class AppComponent {
     format: LocalAuditFormat;
   }): Promise<void> {
     await this.storageService.writeAuditFile(payload.record, payload.format);
+  }
+
+  async onExportConsolidatedHistoryJson(): Promise<void> {
+    await this.storageService.exportConsolidatedAuditHistoryJson(this.allSavedAudits());
   }
 
   async onDeleteSavedAuditRecord(

@@ -199,6 +199,9 @@
       </div>
     }
 
+    <!-- In-App PWA Install Prompt (auto-hides when installed) -->
+    <app-pwa-install-button />
+
     <!-- Load Sample Audits Button -->
     <button
       type="button"
@@ -240,6 +243,8 @@
     </button>
   </div>
 </header>
+
+<app-pwa-offline-banner (openSavedAudits)="fbAuth.isHistoryDrawerOpen.set(true)" />
 
 <main id="app-stage" class="stage" tabindex="-1">
 
@@ -647,6 +652,7 @@
         (autoCompare)="onAutoCompareFromHistory()"
         (openDrawer)="fbAuth.isHistoryDrawerOpen.set(true)"
         (importFile)="onImportLocalAuditFile($event)"
+        (exportAllJson)="onExportConsolidatedHistoryJson()"
         (loadSampleAudits)="onLoadSampleAudits()"
         (openPushTroubleshooter)="onOpenPushTroubleshooter()"
         (signInGithub)="authService.loginWithGitHub()"
@@ -3008,6 +3014,8 @@
   [initialAuditId]="significantAuditPairIds().initialAuditId"
   [latestAuditId]="significantAuditPairIds().latestAuditId"
   [loadingAuditId]="loadingDrawerAuditId()"
+  [offlineReady]="pwaOffline.isOfflineReady()"
+  [isOnline]="pwaOffline.isOnline()"
   (closeDrawer)="fbAuth.isHistoryDrawerOpen.set(false)"
   (openSavedAudit)="onOpenSavedAudit($event)"
   (reAuditRepo)="onReAuditFromDashboard($event); fbAuth.isHistoryDrawerOpen.set(false)"
@@ -3020,6 +3028,7 @@
   (formatChange)="localAuditStorage.preferredFormat.set($event)"
   (importFile)="onImportLocalAuditFile($event)"
   (exportRecord)="onExportSavedAuditRecord($event)"
+  (exportAllJson)="onExportConsolidatedHistoryJson()"
   (signInGithub)="fbAuth.signInWithGitHub()"
   (signInGoogle)="fbAuth.signInWithGoogle()"
 />

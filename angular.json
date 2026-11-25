@@ -30,7 +30,7 @@
             "assets": [
               "src/assets",
               {
-                "glob": "logo.svg",
+                "glob": "{logo.svg,manifest.webmanifest,apple-touch-icon.png,pwa-*.png}",
                 "input": "public",
                 "output": "/"
               }
@@ -78,7 +78,7 @@
             "assets": [
               "src/assets",
               {
-                "glob": "logo.svg",
+                "glob": "{logo.svg,manifest.webmanifest,apple-touch-icon.png,pwa-*.png}",
                 "input": "public",
                 "output": "/"
               }
