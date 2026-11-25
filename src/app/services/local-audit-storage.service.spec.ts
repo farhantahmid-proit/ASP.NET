@@ -3,7 +3,9 @@ import {
   LOCAL_SAVED_AUDITS_STORAGE_KEY,
   LocalAuditStorageService,
   buildLocalSavedAuditRecord,
+  escapeCsvCell,
   parseLocalAuditFile,
+  serializeAuditHistoryToCsv,
   serializeAuditToJson,
   serializeAuditToMarkdown,
   serializeAuditToToon
@@ -165,5 +167,29 @@ describe('LocalAuditStorageService', () => {
 
     service.deleteLocalAudit(saved.auditId);
     expect(service.localAudits().length).toBe(0);
+  });
+
+  it('serializes historical audit score data into RFC-4180 CSV for spreadsheet tools', () => {
+    const session = createMockSession();
+    const rec = buildLocalSavedAuditRecord(session, createMockImpact(), session.commits, 'json');
+    rec.summaryNotes = 'Quoted "LCP, CLS" audit summary';
+
+    expect(escapeCsvCell('simple')).toBe('simple');
+    expect(escapeCsvCell('a, "b"')).toBe('"a, ""b"""');
+
+    const csv = serializeAuditHistoryToCsv([rec]);
+    const lines = csv.trim().split('\n');
+    expect(lines.length).toBe(2);
+    expect(lines[0]).toContain('Audit ID,Repository,Owner / Org');
+    expect(lines[0]).toContain('Performance Before,Performance After,Performance Delta');
+    expect(lines[1]).toContain('fresnel-sandbox/lumina-web-app');
+    expect(lines[1]).toContain(',62,94,32,');
+    expect(lines[1]).toContain(',71,97,26,');
+    expect(lines[1]).toContain('"Quoted ""LCP, CLS"" audit summary"');
+
+    const csvPayload = service.exportConsolidatedCsvPayload([rec]);
+    expect(csvPayload.filename).toMatch(/^fresnel-saved-audits-history-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(csvPayload.mimeType).toBe('text/csv;charset=utf-8');
+    expect(csvPayload.totalCount).toBe(1);
   });
 });

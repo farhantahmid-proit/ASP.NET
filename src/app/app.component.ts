@@ -14,7 +14,10 @@ import { AuditService } from './services/audit.service';
 import { AuthService } from './services/auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { GitPushDiagnosticService } from './services/git-push-diagnostic.service';
-import { LocalAuditStorageService } from './services/local-audit-storage.service';
+import {
+  LocalAuditStorageService,
+  buildLocalSavedAuditRecord
+} from './services/local-audit-storage.service';
 import { PwaOfflineService } from './services/pwa-offline.service';
 import { StorageService } from './services/storage.service';
 import { FresnelLogoComponent } from './components/fresnel-logo/fresnel-logo.component';
@@ -120,6 +123,17 @@ export class AppComponent {
   readonly shortcutNotice = signal<string | null>(null);
   readonly loadingDrawerAuditId = signal<string | null>(null);
   readonly defaultSshEmail = computed<string>(() => this.fbAuth.currentUser()?.email || '');
+  readonly currentSessionAsSavedRecord = computed<LocalSavedAuditRecord | null>(() => {
+    const current = this.audit.session();
+    if (!current || current.status !== 'completed') return null;
+    return buildLocalSavedAuditRecord(
+      current,
+      this.audit.impactMetrics(),
+      this.audit.selectedCommits(),
+      this.localAuditStorage.preferredFormat(),
+      current.id
+    );
+  });
   private reportListAnimTimer: ReturnType<typeof setTimeout> | null = null;
   private shortcutNoticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -695,6 +709,16 @@ export class AppComponent {
 
   async onExportConsolidatedHistoryJson(): Promise<void> {
     await this.storageService.exportConsolidatedAuditHistoryJson(this.allSavedAudits());
+  }
+
+  async onExportConsolidatedHistoryCsv(): Promise<void> {
+    await this.storageService.exportConsolidatedAuditHistoryCsv(this.allSavedAudits());
+  }
+
+  async onExportSavedAuditCsv(
+    record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+  ): Promise<void> {
+    await this.storageService.exportSingleAuditCsv(record);
   }
 
   async onDeleteSavedAuditRecord(

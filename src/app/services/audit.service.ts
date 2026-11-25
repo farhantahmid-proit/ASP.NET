@@ -32,7 +32,9 @@ import {
 import {
   LocalAuditStorageService,
   buildDefaultSampleAudits,
-  buildSynthesizedSessionFromRecord
+  buildLocalSavedAuditRecord,
+  buildSynthesizedSessionFromRecord,
+  serializeAuditHistoryToCsv
 } from './local-audit-storage.service';
 import { AuditResultCacheService, buildAuditCacheKey } from './audit-result-cache.service';
 import { CodeAnalysisWorker } from '../workers/code-analysis-worker';
@@ -212,11 +214,11 @@ export class AuditService {
   readonly isSummaryModalOpen = signal<boolean>(false);
   readonly pendingReportStep = signal<3 | 7 | null>(null);
   readonly exportPreviewMode = signal<'executive' | 'full'>('executive');
-  readonly exportingTarget = signal<'executive-pdf' | 'markdown' | 'full-pdf' | null>(null);
+  readonly exportingTarget = signal<'executive-pdf' | 'markdown' | 'full-pdf' | 'csv' | null>(null);
   readonly exportProgress = signal<number>(0);
   readonly exportStatusLabel = signal<string>('');
   readonly lastExportNotice = signal<string | null>(null);
-  readonly justExportedTarget = signal<'executive-pdf' | 'markdown' | 'full-pdf' | null>(null);
+  readonly justExportedTarget = signal<'executive-pdf' | 'markdown' | 'full-pdf' | 'csv' | null>(null);
   readonly isExportingExecutivePdf = computed<boolean>(
     () => this.exportingTarget() === 'executive-pdf'
   );
@@ -226,6 +228,9 @@ export class AuditService {
   readonly isExportingFullPdf = computed<boolean>(
     () => this.exportingTarget() === 'full-pdf'
   );
+  readonly isExportingCsv = computed<boolean>(
+    () => this.exportingTarget() === 'csv'
+  );
   readonly isJustExportedExecutivePdf = computed<boolean>(
     () => this.justExportedTarget() === 'executive-pdf'
   );
@@ -234,6 +239,9 @@ export class AuditService {
   );
   readonly isJustExportedFullPdf = computed<boolean>(
     () => this.justExportedTarget() === 'full-pdf'
+  );
+  readonly isJustExportedCsv = computed<boolean>(
+    () => this.justExportedTarget() === 'csv'
   );
   readonly prResult = signal<PullRequestResult | null>(null);
   readonly isCreatingPr = signal<boolean>(false);
@@ -2576,7 +2584,7 @@ export class AuditService {
     this.justExportedTarget.set(null);
   }
 
-  private flashJustExported(target: 'executive-pdf' | 'markdown' | 'full-pdf'): void {
+  private flashJustExported(target: 'executive-pdf' | 'markdown' | 'full-pdf' | 'csv'): void {
     this.clearJustExportedState();
     this.justExportedTarget.set(target);
     this.justExportedTimer = setTimeout(() => {
@@ -2833,6 +2841,55 @@ export class AuditService {
       this.notifyExportComplete(fallbackPdf.filename);
       this.flashJustExported('full-pdf');
       await this.waitExportFrame(320);
+    } finally {
+      this.exportingTarget.set(null);
+      this.exportProgress.set(0);
+      this.exportStatusLabel.set('');
+    }
+  }
+
+  async exportReportAsCsv(): Promise<void> {
+    if (this.exportingTarget() !== null) return;
+    const current = this.session();
+    if (!current) return;
+
+    this.dismissExportNotice();
+    this.clearJustExportedState();
+    this.exportingTarget.set('csv');
+    this.exportProgress.set(30);
+    this.exportStatusLabel.set('Compiling score CSV...');
+
+    try {
+      await this.waitExportFrame(120);
+      const record = buildLocalSavedAuditRecord(
+        current,
+        this.impactMetrics(),
+        this.selectedCommits(),
+        'json'
+      );
+      const savedHistory = this.localAuditStorage.localAudits();
+      const sameRepoHistory = savedHistory.filter(
+        (r) => r.repoFullName.toLowerCase() === record.repoFullName.toLowerCase()
+      );
+      const recordsToExport = [
+        record,
+        ...sameRepoHistory.filter((r) => r.auditId !== record.auditId)
+      ];
+      const csvContent = serializeAuditHistoryToCsv(recordsToExport);
+      const repoSlug = (current.repo?.repo || 'repository').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      const phaseSlug = current.runPhase === 'lhr' ? 'lhr-audit' : 'code-audit';
+      const filename = `fresnel-${repoSlug}-${phaseSlug}-scores.csv`;
+
+      this.exportProgress.set(90);
+      this.exportStatusLabel.set('Finalizing .csv file...');
+      await this.waitExportFrame(100);
+
+      this.triggerBrowserDownload(filename, csvContent, undefined, 'text/csv;charset=utf-8');
+      this.exportProgress.set(100);
+      this.exportStatusLabel.set('Downloaded');
+      this.notifyExportComplete(filename);
+      this.flashJustExported('csv');
+      await this.waitExportFrame(250);
     } finally {
       this.exportingTarget.set(null);
       this.exportProgress.set(0);

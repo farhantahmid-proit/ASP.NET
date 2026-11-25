@@ -14,6 +14,10 @@ import {
   UserSessionState
 } from '../../models/audit.model';
 import { SavedAuditTrendChartComponent } from './saved-audit-trend-chart.component';
+import {
+  SavedAuditDiffViewComponent,
+  listComparableDiffRepositories
+} from './saved-audit-diff-view.component';
 
 export type SavedAuditSortOption = 'date-desc' | 'date-asc' | 'repo-asc' | 'repo-desc';
 export type SavedAuditSourceFilter = 'all' | 'local' | 'firestore';
@@ -338,7 +342,7 @@ export function filterSavedAuditRecords(
 
 @Component({
   selector: 'app-saved-audits-drawer',
-  imports: [SavedAuditTrendChartComponent],
+  imports: [SavedAuditTrendChartComponent, SavedAuditDiffViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'onEscapeKey()'
@@ -355,6 +359,7 @@ export function filterSavedAuditRecords(
       id="saved-audits-drawer"
       class="saved-audits-drawer"
       [class.is-open]="isOpen()"
+      [class.is-diff-mode]="isDiffViewOpen()"
       role="dialog"
       aria-modal="true"
       aria-labelledby="saved-audits-drawer-title"
@@ -405,6 +410,28 @@ export function filterSavedAuditRecords(
               title="Export all saved audits as a single consolidated JSON backup report for offline analysis"
             >
               Export All JSON
+            </button>
+            <button
+              type="button"
+              id="drawer-export-csv-btn"
+              class="dashboard-inline-btn"
+              (click)="exportAllCsv.emit()"
+              title="Download historical audit score data as a CSV spreadsheet for Excel or Google Sheets"
+            >
+              Download as CSV
+            </button>
+          }
+          @if (comparableDiffRepos().length > 0) {
+            <button
+              type="button"
+              id="drawer-toggle-diff-btn"
+              class="dashboard-inline-btn"
+              [class.is-active]="isDiffViewOpen()"
+              [attr.aria-pressed]="isDiffViewOpen()"
+              (click)="toggleTopDiffView()"
+              title="Compare current repository audit results side-by-side with a previous audit session"
+            >
+              {{ isDiffViewOpen() ? 'Hide Diff View' : 'Diff View' }}
             </button>
           }
           @if (userSession().isAuthenticated) {
@@ -565,6 +592,17 @@ export function filterSavedAuditRecords(
             </div>
           </div>
         } @else {
+          @if (isDiffViewOpen()) {
+            <app-saved-audit-diff-view
+              [savedAudits]="savedAudits()"
+              [currentSessionRecord]="currentSessionRecord()"
+              [targetRepoFullName]="diffTargetRepo()"
+              [targetAuditId]="diffTargetAuditId()"
+              (selectRepo)="onSelectDiffRepo($event)"
+              (closeDiff)="closeDiffView()"
+            />
+          }
+
           @if (filteredAudits().length > 0) {
             <!-- D3.js Score Trend Line Chart across runs for a single repository -->
             <app-saved-audit-trend-chart
@@ -888,6 +926,19 @@ export function filterSavedAuditRecords(
                           >
                             Trend
                           </button>
+                          <button
+                            type="button"
+                            class="dashboard-inline-btn saved-audit-diff-trigger-btn"
+                            [disabled]="!canDiffRepo(rec.repoFullName)"
+                            (click)="openDiffForRecord(rec)"
+                            [title]="
+                              canDiffRepo(rec.repoFullName)
+                                ? 'Compare this audit side-by-side against a previous session for ' + rec.repoFullName
+                                : 'Save at least 2 audit sessions for ' + rec.repoFullName + ' to open Diff View'
+                            "
+                          >
+                            Diff View
+                          </button>
                           <div class="saved-audit-card__exports" role="group" aria-label="Download saved scan file">
                             <button
                               type="button"
@@ -912,6 +963,14 @@ export function filterSavedAuditRecords(
                               title="Download scan as Markdown (.md)"
                             >
                               .md
+                            </button>
+                            <button
+                              type="button"
+                              class="saved-audit-export-chip"
+                              (click)="exportRecordCsv.emit(rec)"
+                              title="Download scan scores as CSV (.csv)"
+                            >
+                              .csv
                             </button>
                           </div>
                           <button
@@ -1002,6 +1061,19 @@ export function filterSavedAuditRecords(
                     >
                       Trend
                     </button>
+                    <button
+                      type="button"
+                      class="dashboard-inline-btn saved-audit-diff-trigger-btn"
+                      [disabled]="!canDiffRepo(rec.repoFullName)"
+                      (click)="openDiffForRecord(rec)"
+                      [title]="
+                        canDiffRepo(rec.repoFullName)
+                          ? 'Compare this audit side-by-side against a previous session for ' + rec.repoFullName
+                          : 'Save at least 2 audit sessions for ' + rec.repoFullName + ' to open Diff View'
+                      "
+                    >
+                      Diff View
+                    </button>
                     <div class="saved-audit-card__exports" role="group" aria-label="Download saved scan file">
                       <button
                         type="button"
@@ -1026,6 +1098,14 @@ export function filterSavedAuditRecords(
                         title="Download scan as Markdown (.md)"
                       >
                         .md
+                      </button>
+                      <button
+                        type="button"
+                        class="saved-audit-export-chip"
+                        (click)="exportRecordCsv.emit(rec)"
+                        title="Download scan scores as CSV (.csv)"
+                      >
+                        .csv
                       </button>
                     </div>
                     <button
@@ -1074,6 +1154,15 @@ export function filterSavedAuditRecords(
             title="Download full Saved Audits history as one consolidated JSON report"
           >
             Export Full JSON ({{ savedAudits().length }})
+          </button>
+          <button
+            type="button"
+            id="drawer-footer-export-csv-btn"
+            class="dashboard-inline-btn"
+            (click)="exportAllCsv.emit()"
+            title="Download historical audit score data as a CSV file for spreadsheet reporting"
+          >
+            Download as CSV
           </button>
           <button
             type="button"
@@ -1135,6 +1224,7 @@ export class SavedAuditsDrawerComponent {
   readonly offlineReady = input<boolean>(false);
   readonly isOnline = input<boolean>(true);
   readonly storageBackend = input<'indexeddb' | 'localstorage'>('indexeddb');
+  readonly currentSessionRecord = input<LocalSavedAuditRecord | null>(null);
 
   readonly closeDrawer = output<void>();
   readonly openSavedAudit = output<SavedAuditHistoryRecord | LocalSavedAuditRecord>();
@@ -1151,7 +1241,9 @@ export class SavedAuditsDrawerComponent {
     record: SavedAuditHistoryRecord | LocalSavedAuditRecord;
     format: LocalAuditFormat;
   }>();
+  readonly exportRecordCsv = output<SavedAuditHistoryRecord | LocalSavedAuditRecord>();
   readonly exportAllJson = output<void>();
+  readonly exportAllCsv = output<void>();
   readonly signInGithub = output<void>();
   readonly signInGoogle = output<void>();
 
@@ -1167,7 +1259,14 @@ export class SavedAuditsDrawerComponent {
   readonly ownerFilter = signal<string>('all');
   readonly groupByOwner = signal<boolean>(true);
   readonly focusedTrendRepo = signal<string | null>(null);
+  readonly isDiffViewOpen = signal<boolean>(false);
+  readonly diffTargetRepo = signal<string | null>(null);
+  readonly diffTargetAuditId = signal<string | null>(null);
   readonly importError = signal<string | null>(null);
+
+  readonly comparableDiffRepos = computed(() =>
+    listComparableDiffRepositories(this.savedAudits(), this.currentSessionRecord())
+  );
 
   readonly localCount = computed<number>(
     () => this.savedAudits().filter((rec) => isLocalSavedAuditRecord(rec)).length
@@ -1200,6 +1299,44 @@ export class SavedAuditsDrawerComponent {
   readonly groupedAudits = computed<SavedAuditOwnerGroup[]>(() =>
     groupSavedAuditsByOwner(this.filteredAudits(), this.sortBy())
   );
+
+  canDiffRepo(repoFullName: string): boolean {
+    const key = (repoFullName || '').trim().toLowerCase();
+    if (!key) return false;
+    return this.comparableDiffRepos().some((r) => r.repoFullName.toLowerCase() === key);
+  }
+
+  toggleTopDiffView(): void {
+    if (this.isDiffViewOpen()) {
+      this.closeDiffView();
+      return;
+    }
+    const currentRepo = this.currentSessionRecord()?.repoFullName;
+    if (currentRepo && this.canDiffRepo(currentRepo)) {
+      this.diffTargetRepo.set(currentRepo);
+      this.diffTargetAuditId.set(this.currentSessionRecord()?.auditId ?? null);
+    } else {
+      const firstComparable = this.comparableDiffRepos()[0];
+      this.diffTargetRepo.set(firstComparable?.repoFullName ?? null);
+      this.diffTargetAuditId.set(null);
+    }
+    this.isDiffViewOpen.set(true);
+  }
+
+  openDiffForRecord(rec: SavedAuditHistoryRecord | LocalSavedAuditRecord): void {
+    this.diffTargetRepo.set(rec.repoFullName);
+    this.diffTargetAuditId.set(rec.auditId);
+    this.isDiffViewOpen.set(true);
+  }
+
+  onSelectDiffRepo(repoFullName: string): void {
+    this.diffTargetRepo.set(repoFullName);
+    this.diffTargetAuditId.set(null);
+  }
+
+  closeDiffView(): void {
+    this.isDiffViewOpen.set(false);
+  }
 
   onEscapeKey(): void {
     if (this.isOpen()) {

@@ -416,6 +416,26 @@ export class StorageService {
   }
 
   /**
+   * Exports the full Saved Audits history (or supplied merged local + cloud array)
+   * as an RFC-4180 CSV spreadsheet for custom reporting in Excel or Google Sheets.
+   */
+  async exportConsolidatedAuditHistoryCsv(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): Promise<{ success: boolean; filename: string; totalCount: number }> {
+    const targetRecords = records && records.length > 0 ? records : this.offlineAuditHistory();
+    return this.localAuditStorage.exportFullHistoryToDeviceCsv(targetRecords);
+  }
+
+  /**
+   * Downloads a single saved audit record as a CSV score summary file.
+   */
+  async exportSingleAuditCsv(
+    record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+  ): Promise<{ success: boolean; filename: string }> {
+    return this.localAuditStorage.saveSingleAuditCsvToDevice(record);
+  }
+
+  /**
    * Writes an audit record as a `.json` file via the File System Access API
    * (connected workspace folder -> native Save File Picker -> browser download fallback).
    */

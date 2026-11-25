@@ -653,6 +653,7 @@
         (openDrawer)="fbAuth.isHistoryDrawerOpen.set(true)"
         (importFile)="onImportLocalAuditFile($event)"
         (exportAllJson)="onExportConsolidatedHistoryJson()"
+        (exportAllCsv)="onExportConsolidatedHistoryCsv()"
         (loadSampleAudits)="onLoadSampleAudits()"
         (openPushTroubleshooter)="onOpenPushTroubleshooter()"
         (signInGithub)="authService.loginWithGitHub()"
@@ -1370,6 +1371,28 @@
                         <span>Exported .pdf</span>
                       } @else {
                         <span>Download Full .pdf</span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      id="report-download-csv-btn"
+                      class="secondary-flow-btn export-progress-host"
+                      [class.is-exporting]="audit.isExportingCsv()"
+                      [class.is-exported]="!audit.isExportingCsv() && audit.isJustExportedCsv()"
+                      [disabled]="audit.exportingTarget() !== null"
+                      [attr.aria-busy]="audit.isExportingCsv()"
+                      (click)="audit.exportReportAsCsv()"
+                      title="Download historical and current audit score data as a CSV spreadsheet"
+                    >
+                      @if (audit.isExportingCsv()) {
+                        <span>Generating .csv · {{ audit.exportProgress() }}%</span>
+                      } @else if (audit.isJustExportedCsv()) {
+                        <svg class="export-btn-check" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path d="M4.2 9.4l3.1 3.1 6.5-6.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span>Exported .csv</span>
+                      } @else {
+                        <span>Download as CSV</span>
                       }
                     </button>
                   </div>
@@ -3025,6 +3048,7 @@
   [offlineReady]="pwaOffline.isOfflineReady()"
   [isOnline]="pwaOffline.isOnline()"
   [storageBackend]="localAuditStorage.storageBackend()"
+  [currentSessionRecord]="currentSessionAsSavedRecord()"
   (closeDrawer)="fbAuth.isHistoryDrawerOpen.set(false)"
   (openSavedAudit)="onOpenSavedAudit($event)"
   (reAuditRepo)="onReAuditFromDashboard($event); fbAuth.isHistoryDrawerOpen.set(false)"
@@ -3037,7 +3061,9 @@
   (formatChange)="localAuditStorage.preferredFormat.set($event)"
   (importFile)="onImportLocalAuditFile($event)"
   (exportRecord)="onExportSavedAuditRecord($event)"
+  (exportRecordCsv)="onExportSavedAuditCsv($event)"
   (exportAllJson)="onExportConsolidatedHistoryJson()"
+  (exportAllCsv)="onExportConsolidatedHistoryCsv()"
   (signInGithub)="fbAuth.signInWithGitHub()"
   (signInGoogle)="fbAuth.signInWithGoogle()"
 />

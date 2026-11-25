@@ -7,7 +7,13 @@ import {
 } from './saved-audits-drawer.component';
 import { buildRepositoryTrendSeries } from './saved-audit-trend-chart.component';
 import {
+  buildComparableRepositorySessions,
+  computeRepositoryAuditDiff,
+  pickDefaultDiffPair
+} from './saved-audit-diff-view.component';
+import {
   parseLocalAuditRecords,
+  serializeAuditHistoryToCsv,
   serializeConsolidatedAuditHistoryJson
 } from '../../services/local-audit-storage.service';
 import { LocalSavedAuditRecord, UserSessionState } from '../../models/audit.model';
@@ -412,5 +418,98 @@ describe('SavedAuditsDrawerComponent', () => {
       fixture.nativeElement.querySelectorAll('.saved-audit-card__repo') as NodeListOf<HTMLElement>
     ).map((el) => (el.textContent || '').trim());
     expect(renderedRepos).toEqual(['enterprise/checkout-portal']);
+  });
+
+  it('emits exportAllCsv and exportRecordCsv when Download as CSV or per-card .csv is clicked', () => {
+    const csv = serializeAuditHistoryToCsv(MOCK_LOCAL_AUDITS);
+    expect(csv).toContain('Audit ID,Repository,Owner / Org');
+    expect(csv).toContain('acme/web-portal');
+
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', MOCK_LOCAL_AUDITS);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const exportCsvSpy = jasmine.createSpy('exportAllCsv');
+    const exportRecordCsvSpy = jasmine.createSpy('exportRecordCsv');
+    fixture.componentInstance.exportAllCsv.subscribe(exportCsvSpy);
+    fixture.componentInstance.exportRecordCsv.subscribe(exportRecordCsvSpy);
+
+    const headerCsvBtn: HTMLButtonElement | null =
+      fixture.nativeElement.querySelector('#drawer-export-csv-btn');
+    expect(headerCsvBtn).not.toBeNull();
+    expect(headerCsvBtn?.textContent?.trim()).toBe('Download as CSV');
+    headerCsvBtn?.click();
+    expect(exportCsvSpy).toHaveBeenCalledTimes(1);
+
+    const exportBtns: NodeListOf<HTMLButtonElement> =
+      fixture.nativeElement.querySelectorAll('.saved-audit-export-chip');
+    expect(exportBtns.length).toBeGreaterThanOrEqual(4);
+    exportBtns[3].click(); // .csv
+    expect(exportRecordCsvSpy).toHaveBeenCalledWith(MOCK_LOCAL_AUDITS[1]);
+  });
+
+  it('computes and renders side-by-side Diff View comparing current audit results against a previous session', () => {
+    const prevRun: LocalSavedAuditRecord = {
+      ...MOCK_LOCAL_AUDITS[0],
+      auditId: 'acme-prev-1',
+      branch: 'release/v1.0',
+      performanceBefore: 54,
+      performanceAfter: 78,
+      accessibilityBefore: 66,
+      accessibilityAfter: 84,
+      commitTitles: ['a11y: add aria-label to icon buttons', 'seo: add canonical link'],
+      updatedAtIso: '2026-10-01T08:00:00.000Z',
+      createdAtIso: '2026-10-01T08:00:00.000Z'
+    };
+    const currRun: LocalSavedAuditRecord = {
+      ...MOCK_LOCAL_AUDITS[0],
+      auditId: 'acme-curr-2',
+      branch: 'main',
+      performanceBefore: 64,
+      performanceAfter: 94,
+      accessibilityBefore: 72,
+      accessibilityAfter: 96,
+      commitTitles: [
+        'a11y: add aria-label to icon buttons',
+        'perf: preload hero image with fetchpriority="high"'
+      ],
+      updatedAtIso: '2026-10-10T10:00:00.000Z',
+      createdAtIso: '2026-10-10T10:00:00.000Z'
+    };
+
+    const sessions = buildComparableRepositorySessions([prevRun], currRun, 'acme/web-portal');
+    expect(sessions.length).toBe(2);
+    const pair = pickDefaultDiffPair(sessions);
+    expect(pair.currentRun?.auditId).toBe('acme-curr-2');
+    expect(pair.previousRun?.auditId).toBe('acme-prev-1');
+
+    const diff = computeRepositoryAuditDiff(pair.previousRun!, pair.currentRun!);
+    expect(diff.categories[0].afterDelta).toBe(16); // 94 - 78
+    expect(diff.categories[1].afterDelta).toBe(12); // 96 - 84
+    expect(diff.addedCommits).toEqual(['perf: preload hero image with fetchpriority="high"']);
+    expect(diff.sharedCommits).toEqual(['a11y: add aria-label to icon buttons']);
+    expect(diff.removedCommits).toEqual(['seo: add canonical link']);
+
+    const fixture = TestBed.createComponent(SavedAuditsDrawerComponent);
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.componentRef.setInput('savedAudits', [prevRun, currRun]);
+    fixture.componentRef.setInput('userSession', SIGNED_OUT_USER_SESSION);
+    fixture.detectChanges();
+
+    const diffBtn: HTMLButtonElement | null =
+      fixture.nativeElement.querySelector('.saved-audit-diff-trigger-btn');
+    expect(diffBtn).not.toBeNull();
+    expect(diffBtn?.disabled).toBeFalse();
+    diffBtn?.click();
+    fixture.detectChanges();
+
+    const diffSection: HTMLElement | null =
+      fixture.nativeElement.querySelector('#saved-audit-diff-view');
+    expect(diffSection).not.toBeNull();
+    expect(diffSection?.textContent).toContain('+16 pts');
+    expect(diffSection?.textContent).toContain('+12 pts');
+    expect(diffSection?.textContent).toContain('perf: preload hero image with fetchpriority="high"');
   });
 });

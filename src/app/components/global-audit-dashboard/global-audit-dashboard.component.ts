@@ -414,6 +414,15 @@ export function buildGlobalRepoContributions(
             >
               Export All JSON
             </button>
+            <button
+              type="button"
+              id="global-dashboard-export-csv-btn"
+              class="dashboard-inline-btn"
+              (click)="exportAllCsv.emit()"
+              title="Download historical audit score data as a CSV spreadsheet for Excel or Google Sheets"
+            >
+              Download as CSV
+            </button>
           }
         </div>
       </div>
@@ -630,6 +639,7 @@ export class GlobalAuditDashboardComponent {
 
   readonly openSavedAudit = output<SavedAuditHistoryRecord | LocalSavedAuditRecord>();
   readonly exportAllJson = output<void>();
+  readonly exportAllCsv = output<void>();
   readonly loadSampleAudits = output<void>();
 
   private readonly globalChartHost = viewChild<ElementRef<HTMLDivElement>>('globalChartHost');

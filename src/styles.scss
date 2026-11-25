@@ -10639,6 +10639,447 @@ a.repo-stat-chip:hover {
   color: var(--text-muted);
 }
 
+/* =========================================================================
+   SAVED AUDITS DIFF VIEW (SIDE-BY-SIDE SESSION COMPARISON)
+   ========================================================================= */
+
+.saved-audits-drawer.is-diff-mode {
+  width: min(860px, 96vw);
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), width 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.saved-audit-diff-trigger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.saved-diff-panel {
+  margin-bottom: 1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.saved-diff-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.saved-diff-panel__heading {
+  min-width: 0;
+}
+
+.saved-diff-panel__kicker {
+  margin: 0 0 0.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.saved-diff-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.saved-diff-panel__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.saved-diff-banner {
+  padding: 0.6rem 0.85rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+}
+
+.saved-diff-banner__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.saved-diff-banner__label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.saved-diff-banner__delta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.saved-diff-banner__delta.is-improved {
+  color: #15803d;
+}
+
+[data-theme="dark"] .saved-diff-banner__delta.is-improved {
+  color: #4ade80;
+}
+
+.saved-diff-banner__delta.is-regressed {
+  color: #b91c1c;
+}
+
+[data-theme="dark"] .saved-diff-banner__delta.is-regressed {
+  color: #f87171;
+}
+
+.saved-diff-banner__meta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  color: var(--text-body);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.saved-diff-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.saved-diff-col {
+  padding: 0.78rem 0.88rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.saved-diff-col--curr {
+  border-color: var(--border-card);
+  background: var(--bg-page);
+}
+
+.saved-diff-col__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.saved-diff-col__role {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.saved-diff-col__score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-body);
+}
+
+.saved-diff-col__score--curr {
+  color: var(--accent-primary);
+}
+
+[data-theme="dark"] .saved-diff-col__score--curr {
+  color: var(--accent-cyan);
+}
+
+.saved-diff-col__select {
+  width: 100%;
+  padding: 0.34rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.saved-diff-col__select:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.saved-diff-col__meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.saved-diff-col__notes {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-body);
+}
+
+.saved-diff-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+}
+
+.saved-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.79rem;
+}
+
+.saved-diff-table th {
+  text-align: left;
+  padding: 0.5rem 0.72rem;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.saved-diff-table th.is-num,
+.saved-diff-table td.is-num {
+  text-align: right;
+}
+
+.saved-diff-table th.is-right,
+.saved-diff-table td.is-right {
+  text-align: right;
+}
+
+.saved-diff-table td {
+  padding: 0.52rem 0.72rem;
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-main);
+}
+
+.saved-diff-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.saved-diff-table__cat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.saved-diff-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  max-width: 160px;
+}
+
+.saved-diff-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.saved-diff-bar--prev {
+  background: var(--border-card);
+}
+
+.saved-diff-bar--curr {
+  background: var(--accent-primary);
+}
+
+[data-theme="dark"] .saved-diff-bar--curr {
+  background: var(--accent-cyan);
+}
+
+.saved-diff-table__num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.saved-diff-score-sub {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin-right: 0.15rem;
+}
+
+.saved-diff-delta {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.saved-diff-delta.is-improved {
+  color: #15803d;
+}
+
+[data-theme="dark"] .saved-diff-delta.is-improved {
+  color: #4ade80;
+}
+
+.saved-diff-delta.is-regressed {
+  color: #b91c1c;
+}
+
+[data-theme="dark"] .saved-diff-delta.is-regressed {
+  color: #f87171;
+}
+
+.saved-diff-commits-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.saved-diff-commits-col {
+  padding: 0.72rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.saved-diff-commits-col__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.saved-diff-commits-empty {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.saved-diff-commit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.saved-diff-commit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.42rem;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-body);
+  padding: 0.28rem 0.4rem;
+  border-radius: 6px;
+}
+
+.saved-diff-commit-item.is-added {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .saved-diff-commit-item.is-added {
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.saved-diff-commit-item.is-removed {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+[data-theme="dark"] .saved-diff-commit-item.is-removed {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.saved-diff-commit-marker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.saved-diff-commit-item.is-added .saved-diff-commit-marker {
+  color: #15803d;
+}
+
+[data-theme="dark"] .saved-diff-commit-item.is-added .saved-diff-commit-marker {
+  color: #4ade80;
+}
+
+.saved-diff-commit-item.is-removed .saved-diff-commit-marker {
+  color: #b91c1c;
+}
+
+[data-theme="dark"] .saved-diff-commit-item.is-removed .saved-diff-commit-marker {
+  color: #f87171;
+}
+
+.saved-diff-empty {
+  padding: 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.saved-diff-empty__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.saved-diff-empty__desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-body);
+}
+
+.saved-diff-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 680px) {
+  .saved-diff-columns,
+  .saved-diff-commits-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 
 
 

@@ -151,7 +151,9 @@ describe('GlobalAuditDashboardComponent', () => {
     expect(perfDots.length).toBe(3);
 
     const exportSpy = jasmine.createSpy('exportAllJson');
+    const exportCsvSpy = jasmine.createSpy('exportAllCsv');
     fixture.componentInstance.exportAllJson.subscribe(exportSpy);
+    fixture.componentInstance.exportAllCsv.subscribe(exportCsvSpy);
 
     const exportBtn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
       '#global-dashboard-export-json-btn'
@@ -159,6 +161,14 @@ describe('GlobalAuditDashboardComponent', () => {
     expect(exportBtn).not.toBeNull();
     exportBtn?.click();
     expect(exportSpy).toHaveBeenCalledTimes(1);
+
+    const exportCsvBtn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
+      '#global-dashboard-export-csv-btn'
+    );
+    expect(exportCsvBtn).not.toBeNull();
+    expect(exportCsvBtn?.textContent?.trim()).toBe('Download as CSV');
+    exportCsvBtn?.click();
+    expect(exportCsvSpy).toHaveBeenCalledTimes(1);
 
     const avgBtn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
       '#global-view-average-btn'

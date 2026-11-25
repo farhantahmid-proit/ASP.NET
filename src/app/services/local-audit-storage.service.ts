@@ -532,6 +532,125 @@ export function serializeConsolidatedAuditHistoryJson(
   return JSON.stringify(buildConsolidatedAuditHistoryReport(records), null, 2);
 }
 
+export function escapeCsvCell(raw: string | number | null | undefined): string {
+  const str = String(raw ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+const AUDIT_CSV_HEADERS: readonly string[] = [
+  'Audit ID',
+  'Repository',
+  'Owner / Org',
+  'Branch',
+  'Run Phase',
+  'Mode',
+  'Updated At (ISO)',
+  'Created At (ISO)',
+  'Performance Before',
+  'Performance After',
+  'Performance Delta',
+  'Accessibility Before',
+  'Accessibility After',
+  'Accessibility Delta',
+  'Best Practices Before',
+  'Best Practices After',
+  'Best Practices Delta',
+  'SEO Before',
+  'SEO After',
+  'SEO Delta',
+  'Security Before',
+  'Security After',
+  'Security Delta',
+  'Selected Commits',
+  'Total Commits',
+  'Storage Source',
+  'Saved Format',
+  'Summary Notes',
+  'Commit Titles',
+  'Repository URL'
+];
+
+function buildAuditCsvRow(rec: LocalSavedAuditRecord): string {
+  const repoFullName = (rec.repoFullName || 'owner/repository').trim();
+  const owner = repoFullName.includes('/')
+    ? repoFullName.split('/')[0].trim() || 'ungrouped'
+    : 'ungrouped';
+
+  const perfBefore = clampScore(rec.performanceBefore, 0);
+  const perfAfter = clampScore(rec.performanceAfter, 0);
+  const a11yBefore = clampScore(rec.accessibilityBefore, 0);
+  const a11yAfter = clampScore(rec.accessibilityAfter, 0);
+  const bpBefore = clampScore(rec.bestPracticesBefore, 0);
+  const bpAfter = clampScore(rec.bestPracticesAfter, 0);
+  const seoBefore = clampScore(rec.seoBefore, 0);
+  const seoAfter = clampScore(rec.seoAfter, 0);
+  const secBefore = clampScore(rec.securityBefore, 0);
+  const secAfter = clampScore(rec.securityAfter, 0);
+
+  const cells: Array<string | number> = [
+    rec.auditId,
+    repoFullName,
+    owner,
+    rec.branch || 'main',
+    rec.runPhase === 'lhr' ? 'LHR JSON' : 'Static AST',
+    rec.mode || 'live',
+    rec.updatedAtIso || rec.createdAtIso || '',
+    rec.createdAtIso || rec.updatedAtIso || '',
+    perfBefore,
+    perfAfter,
+    perfAfter - perfBefore,
+    a11yBefore,
+    a11yAfter,
+    a11yAfter - a11yBefore,
+    bpBefore,
+    bpAfter,
+    bpAfter - bpBefore,
+    seoBefore,
+    seoAfter,
+    seoAfter - seoBefore,
+    secBefore,
+    secAfter,
+    secAfter - secBefore,
+    Math.max(0, rec.selectedCommitsCount || 0),
+    Math.max(0, rec.totalCommitsCount || 0),
+    rec.storageSource || 'local',
+    rec.savedFormat || 'json',
+    rec.summaryNotes || '',
+    (rec.commitTitles || []).join(' | '),
+    rec.repoUrl || ''
+  ];
+
+  return cells.map((cell) => escapeCsvCell(cell)).join(',');
+}
+
+export function serializeAuditHistoryToCsv(
+  records: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+): string {
+  const normalized = records
+    .map((rec) => toNormalizedLocalRecord(rec))
+    .sort((a, b) => {
+      const tA = new Date(a.updatedAtIso || a.createdAtIso || 0).getTime();
+      const tB = new Date(b.updatedAtIso || b.createdAtIso || 0).getTime();
+      return (Number.isFinite(tB) ? tB : 0) - (Number.isFinite(tA) ? tA : 0);
+    });
+
+  const rows = [
+    AUDIT_CSV_HEADERS.map((h) => escapeCsvCell(h)).join(','),
+    ...normalized.map((rec) => buildAuditCsvRow(rec))
+  ];
+
+  return `${rows.join('\n')}\n`;
+}
+
+export function serializeAuditToCsv(
+  record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+): string {
+  return serializeAuditHistoryToCsv([record]);
+}
+
 export function serializeAuditToToon(record: LocalSavedAuditRecord): string {
   const commits = record.snapshotSession?.commits?.length
     ? record.snapshotSession.commits
@@ -1341,6 +1460,124 @@ export class LocalAuditStorageService {
       `Exported consolidated JSON backup (${payload.totalCount} ${payload.totalCount === 1 ? 'audit' : 'audits'}): ${payload.filename}`
     );
     return { success: true, filename: payload.filename, totalCount: payload.totalCount };
+  }
+
+  exportConsolidatedCsvPayload(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): { filename: string; content: string; mimeType: string; totalCount: number } {
+    const source = records ?? this.localAudits();
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `fresnel-saved-audits-history-${stamp}.csv`,
+      content: serializeAuditHistoryToCsv(source),
+      mimeType: 'text/csv;charset=utf-8',
+      totalCount: source.length
+    };
+  }
+
+  async exportFullHistoryToDeviceCsv(
+    records?: readonly (SavedAuditHistoryRecord | LocalSavedAuditRecord)[]
+  ): Promise<{ success: boolean; filename: string; totalCount: number }> {
+    const payload = this.exportConsolidatedCsvPayload(records);
+    if (typeof window === 'undefined') {
+      return { success: false, filename: payload.filename, totalCount: payload.totalCount };
+    }
+
+    try {
+      if (this.isFileSystemAccessSupported()) {
+        const fileHandle = await (window as unknown as {
+          showSaveFilePicker: (opts: unknown) => Promise<{
+            createWritable: () => Promise<{
+              write: (data: string) => Promise<void>;
+              close: () => Promise<void>;
+            }>;
+          }>;
+        }).showSaveFilePicker({
+          suggestedName: payload.filename,
+          types: [
+            {
+              description: 'Fresnel Historical Audit Scores (.csv)',
+              accept: { 'text/csv': ['.csv'] }
+            }
+          ]
+        });
+
+        const writable = await fileHandle.createWritable();
+        await writable.write(payload.content);
+        await writable.close();
+        this.showNotice(
+          `Downloaded CSV report (${payload.totalCount} ${payload.totalCount === 1 ? 'audit' : 'audits'}): ${payload.filename}.`
+        );
+        return { success: true, filename: payload.filename, totalCount: payload.totalCount };
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { success: false, filename: payload.filename, totalCount: payload.totalCount };
+      }
+    }
+
+    this.downloadPayloadAsFile(payload.filename, payload.content, payload.mimeType);
+    this.showNotice(
+      `Downloaded CSV report (${payload.totalCount} ${payload.totalCount === 1 ? 'audit' : 'audits'}): ${payload.filename}`
+    );
+    return { success: true, filename: payload.filename, totalCount: payload.totalCount };
+  }
+
+  exportRecordCsvPayload(
+    record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+  ): { filename: string; content: string; mimeType: string } {
+    const localRec = toNormalizedLocalRecord(record);
+    const baseRepo = sanitizeSlug(localRec.repoFullName.split('/').pop() || 'repository');
+    const phaseSuffix = localRec.runPhase === 'lhr' ? 'lhr-audit' : 'code-audit';
+    return {
+      filename: `fresnel-${baseRepo}-${phaseSuffix}.csv`,
+      content: serializeAuditToCsv(localRec),
+      mimeType: 'text/csv;charset=utf-8'
+    };
+  }
+
+  async saveSingleAuditCsvToDevice(
+    record: SavedAuditHistoryRecord | LocalSavedAuditRecord
+  ): Promise<{ success: boolean; filename: string }> {
+    const payload = this.exportRecordCsvPayload(record);
+    if (typeof window === 'undefined') {
+      return { success: false, filename: payload.filename };
+    }
+
+    try {
+      if (this.isFileSystemAccessSupported()) {
+        const fileHandle = await (window as unknown as {
+          showSaveFilePicker: (opts: unknown) => Promise<{
+            createWritable: () => Promise<{
+              write: (data: string) => Promise<void>;
+              close: () => Promise<void>;
+            }>;
+          }>;
+        }).showSaveFilePicker({
+          suggestedName: payload.filename,
+          types: [
+            {
+              description: 'Fresnel Audit Score CSV (.csv)',
+              accept: { 'text/csv': ['.csv'] }
+            }
+          ]
+        });
+
+        const writable = await fileHandle.createWritable();
+        await writable.write(payload.content);
+        await writable.close();
+        this.showNotice(`Downloaded audit CSV: ${payload.filename}`);
+        return { success: true, filename: payload.filename };
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { success: false, filename: payload.filename };
+      }
+    }
+
+    this.downloadPayloadAsFile(payload.filename, payload.content, payload.mimeType);
+    this.showNotice(`Downloaded audit CSV: ${payload.filename}`);
+    return { success: true, filename: payload.filename };
   }
 
   exportRecordPayload(

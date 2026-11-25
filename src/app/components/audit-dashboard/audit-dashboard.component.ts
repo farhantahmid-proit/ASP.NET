@@ -547,6 +547,7 @@ export function summarizeRecentRepositories(
         [savedAudits]="sortedAudits()"
         (openSavedAudit)="openSavedAudit.emit($event)"
         (exportAllJson)="exportAllJson.emit()"
+        (exportAllCsv)="exportAllCsv.emit()"
         (loadSampleAudits)="loadSampleAudits.emit()"
       />
 
@@ -1085,6 +1086,7 @@ export class AuditDashboardComponent {
   readonly openDrawer = output<void>();
   readonly importFile = output<{ filename: string; content: string }>();
   readonly exportAllJson = output<void>();
+  readonly exportAllCsv = output<void>();
   readonly loadSampleAudits = output<void>();
   readonly openPushTroubleshooter = output<void>();
   readonly signInGithub = output<void>();
