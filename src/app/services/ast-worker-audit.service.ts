@@ -5,13 +5,11 @@ import {
 } from '../models/audit.model';
 import {
   AstAuditExecutionSummary,
-  AstWorkerRequestPayload,
-  AstWorkerResponsePayload,
-  ImportedSourceFile,
-  analyzeSourceFilesWithAcorn
+  ImportedSourceFile
 } from '../workers/ast-analyzer.engine';
+import { CodeAnalysisWorker } from '../workers/code-analysis-worker';
 import { buildLocalSavedAuditRecord } from './local-audit-storage.service';
-import { FileSystemAuditDataService } from './file-system-audit-data.service';
+import { StorageService } from './storage.service';
 
 const ANALYZABLE_SOURCE_EXT_RE = /\.(m?js|cjs|jsx|ts|tsx|html?|htm)$/i;
 const IGNORED_DIR_NAMES = new Set([
@@ -145,14 +143,8 @@ export function trackMetric(event: TelemetryEvent): void {
 })
 export class AstWorkerAuditService {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly fileSystemData = inject(FileSystemAuditDataService);
-
-  private worker: Worker | null = null;
-  private activeRequestId: string | null = null;
-  private activeResolve: ((record: LocalSavedAuditRecord) => void) | null = null;
-  private activeReject: ((err: Error) => void) | null = null;
-  private activeSaveFormat: LocalAuditFormat = 'json';
-  private activePromptSave = false;
+  private readonly storage = inject(StorageService);
+  private readonly codeAnalysisWorker = new CodeAnalysisWorker();
 
   readonly isAnalyzing = signal<boolean>(false);
   readonly progressPercent = signal<number>(0);
@@ -167,98 +159,8 @@ export class AstWorkerAuditService {
 
   constructor() {
     this.destroyRef.onDestroy(() => {
-      if (this.worker) {
-        this.worker.terminate();
-        this.worker = null;
-      }
+      this.codeAnalysisWorker.terminate();
     });
-  }
-
-  private ensureWorker(): Worker | null {
-    if (typeof Worker === 'undefined') {
-      return null;
-    }
-    if (!this.worker) {
-      try {
-        this.worker = new Worker(
-          new URL('../workers/ast-audit.worker', import.meta.url),
-          { type: 'module' }
-        );
-        this.worker.onmessage = ({ data }: MessageEvent<AstWorkerResponsePayload>) => {
-          void this.handleWorkerMessage(data);
-        };
-        this.worker.onerror = (event: ErrorEvent) => {
-          const msg = event.message || 'Web Worker encountered an unexpected AST parser error.';
-          this.errorMessage.set(msg);
-          this.isAnalyzing.set(false);
-          if (this.activeReject) {
-            this.activeReject(new Error(msg));
-            this.activeResolve = null;
-            this.activeReject = null;
-          }
-        };
-      } catch {
-        this.worker = null;
-      }
-    }
-    return this.worker;
-  }
-
-  private async handleWorkerMessage(msg: AstWorkerResponsePayload): Promise<void> {
-    if (!msg || msg.requestId !== this.activeRequestId) {
-      return;
-    }
-
-    if (msg.type === 'progress') {
-      this.processedFiles.set(msg.processedFiles);
-      this.totalFiles.set(msg.totalFiles);
-      this.currentFile.set(msg.currentFile);
-      this.progressPercent.set(msg.percent);
-      this.findingsSoFar.set(msg.findingsSoFar);
-      this.astNodesSoFar.set(msg.astNodesVisited);
-      return;
-    }
-
-    if (msg.type === 'error') {
-      this.errorMessage.set(msg.message);
-      this.isAnalyzing.set(false);
-      if (this.activeReject) {
-        this.activeReject(new Error(msg.message));
-        this.activeResolve = null;
-        this.activeReject = null;
-      }
-      return;
-    }
-
-    if (msg.type === 'complete') {
-      const record = buildLocalSavedAuditRecord(
-        msg.session,
-        msg.impact,
-        msg.commits,
-        this.activeSaveFormat,
-        `astw_${Date.now().toString(36)}`
-      );
-      record.summaryNotes = `Acorn AST Web Worker analyzed ${msg.summary.filesAnalyzed} source files (${msg.summary.astNodesVisited.toLocaleString()} AST nodes walked in ${msg.summary.durationMs} ms off the main thread) and generated ${msg.summary.findingsCount} findings.`;
-
-      const saved = await this.fileSystemData.persistAuditResult(
-        record,
-        this.activeSaveFormat,
-        { promptDeviceSave: this.activePromptSave }
-      );
-
-      this.progressPercent.set(100);
-      this.findingsSoFar.set(msg.summary.findingsCount);
-      this.astNodesSoFar.set(msg.summary.astNodesVisited);
-      this.lastSummary.set(msg.summary);
-      this.lastCompletedRecord.set(saved);
-      this.isAnalyzing.set(false);
-
-      if (this.activeResolve) {
-        this.activeResolve(saved);
-        this.activeResolve = null;
-        this.activeReject = null;
-      }
-    }
   }
 
   async analyzeImportedFiles(
@@ -271,10 +173,6 @@ export class AstWorkerAuditService {
       throw new Error('No analyzable JavaScript, TypeScript, or HTML source files were found.');
     }
 
-    const requestId = `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-    this.activeRequestId = requestId;
-    this.activeSaveFormat = saveFormat;
-    this.activePromptSave = promptDeviceSave;
     this.errorMessage.set(null);
     this.isAnalyzing.set(true);
     this.progressPercent.set(2);
@@ -284,49 +182,65 @@ export class AstWorkerAuditService {
     this.findingsSoFar.set(0);
     this.astNodesSoFar.set(0);
 
-    const payload: AstWorkerRequestPayload = {
-      requestId,
-      repoName,
-      files
-    };
+    try {
+      const result = await this.codeAnalysisWorker.analyzeRepository(
+        repoName,
+        files,
+        (progress) => {
+          this.processedFiles.set(progress.processedFiles);
+          this.totalFiles.set(progress.totalFiles);
+          this.currentFile.set(progress.currentFile);
+          this.progressPercent.set(progress.percent);
+          this.findingsSoFar.set(progress.findingsSoFar);
+          this.astNodesSoFar.set(progress.astNodesVisited);
+        }
+      );
 
-    const worker = this.ensureWorker();
-    if (worker) {
-      return new Promise<LocalSavedAuditRecord>((resolve, reject) => {
-        this.activeResolve = resolve;
-        this.activeReject = reject;
-        worker.postMessage(payload);
+      const scanTimestamp = Date.now().toString(36);
+      const record = buildLocalSavedAuditRecord(
+        result.session,
+        result.impact,
+        result.commits,
+        saveFormat,
+        `astw_${scanTimestamp}`
+      );
+      record.summaryNotes = `CodeAnalysisWorker (Acorn AST) analyzed ${result.summary.filesAnalyzed} source files (${result.summary.astNodesVisited.toLocaleString()} AST nodes walked in ${result.summary.durationMs} ms off the main thread) and generated ${result.summary.findingsCount} findings.`;
+
+      const saved = await this.storage.persistAuditHistory(record, saveFormat, {
+        promptDeviceSave
       });
+
+      await this.storage.saveOfflineScanResult({
+        scanId: `scan_${scanTimestamp}`,
+        auditId: saved.auditId,
+        repoFullName: result.summary.repoFullName,
+        scannedAtIso: saved.updatedAtIso,
+        filesAnalyzed: result.summary.filesAnalyzed,
+        filesParsedWithAcorn: result.summary.filesParsedWithAcorn,
+        astNodesVisited: result.summary.astNodesVisited,
+        findingsCount: result.summary.findingsCount,
+        durationMs: result.summary.durationMs,
+        executedInWorker: result.summary.executedInWorker,
+        categoryCounts: result.summary.categoryCounts,
+        record: saved
+      });
+
+      this.progressPercent.set(100);
+      this.findingsSoFar.set(result.summary.findingsCount);
+      this.astNodesSoFar.set(result.summary.astNodesVisited);
+      this.lastSummary.set(result.summary);
+      this.lastCompletedRecord.set(saved);
+      return saved;
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'CodeAnalysisWorker encountered an unexpected AST parser error.';
+      this.errorMessage.set(msg);
+      throw err instanceof Error ? err : new Error(msg);
+    } finally {
+      this.isAnalyzing.set(false);
     }
-
-    // Fallback when Worker API is unavailable (e.g. non-browser test runners)
-    const result = analyzeSourceFilesWithAcorn(
-      payload,
-      (progress) => {
-        this.processedFiles.set(progress.processedFiles);
-        this.totalFiles.set(progress.totalFiles);
-        this.currentFile.set(progress.currentFile);
-        this.progressPercent.set(progress.percent);
-        this.findingsSoFar.set(progress.findingsSoFar);
-        this.astNodesSoFar.set(progress.astNodesVisited);
-      },
-      false
-    );
-
-    const record = buildLocalSavedAuditRecord(
-      result.session,
-      result.impact,
-      result.commits,
-      saveFormat,
-      `astw_${Date.now().toString(36)}`
-    );
-    const saved = await this.fileSystemData.persistAuditResult(record, saveFormat, {
-      promptDeviceSave
-    });
-    this.lastSummary.set(result.summary);
-    this.lastCompletedRecord.set(saved);
-    this.isAnalyzing.set(false);
-    return saved;
   }
 
   async runSampleRepositoryAstBenchmark(
