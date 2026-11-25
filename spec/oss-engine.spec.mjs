@@ -14,7 +14,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildDemoSandboxFiles } from '../server/oss-engine/repo-ingestion.js';
-import { detectGithubSshReadiness } from '../server/oss-engine/ssh-diagnostics.js';
+import {
+  classifyGitLsRemoteError,
+  detectGithubSshReadiness,
+  diagnoseGitRemotePush,
+  validateGitPushUrl
+} from '../server/oss-engine/ssh-diagnostics.js';
 import {
   buildUnifiedGitDiff,
   computeDeterministicScores,
@@ -296,6 +301,50 @@ describe('Fresnel Zero-AI OSS Audit Engine Pipeline', () => {
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
+    });
+
+    it('validates GitHub SSH/HTTPS push URLs and blocks injection or malformed arguments', () => {
+      const okSsh = validateGitPushUrl('git@github.com:octocat/hello-world.git');
+      expect(okSsh.valid).toBeTrue();
+      expect(okSsh.detectedProtocol).toBe('ssh');
+      expect(okSsh.normalizedHttpsUrl).toBe('https://github.com/octocat/hello-world.git');
+
+      const okHttps = validateGitPushUrl('https://github.com/octocat/hello-world');
+      expect(okHttps.valid).toBeTrue();
+      expect(okHttps.normalizedSshUrl).toBe('git@github.com:octocat/hello-world.git');
+
+      expect(validateGitPushUrl('--upload-pack=sh').valid).toBeFalse();
+      expect(validateGitPushUrl('ext::sh -c id').valid).toBeFalse();
+      expect(validateGitPushUrl('https://github.com/octocat/hello-world/tree/main').valid).toBeFalse();
+      expect(validateGitPushUrl('http://127.0.0.1/repo').valid).toBeFalse();
+    });
+
+    it('classifies git ls-remote failures into missing_ssh_keys, incorrect_permissions, or invalid_push_url', async () => {
+      expect(
+        classifyGitLsRemoteError('git@github.com: Permission denied (publickey).', {
+          protocol: 'ssh'
+        }).rootCause
+      ).toBe('missing_ssh_keys');
+
+      expect(
+        classifyGitLsRemoteError('remote: Repository not found. fatal: Authentication failed (403)', {
+          protocol: 'https'
+        }).rootCause
+      ).toBe('incorrect_permissions');
+
+      expect(
+        classifyGitLsRemoteError('fatal: Request contains an invalid argument', {
+          protocol: 'https'
+        }).rootCause
+      ).toBe('invalid_push_url');
+
+      const badUrlDiag = await diagnoseGitRemotePush({
+        repoUrl: 'https://github.com/octocat/repo/tree/main',
+        skipSystemCmds: true
+      });
+      expect(badUrlDiag.ok).toBeFalse();
+      expect(badUrlDiag.rootCause).toBe('invalid_push_url');
+      expect(badUrlDiag.resolutionSteps.length).toBeGreaterThan(0);
     });
   });
 });

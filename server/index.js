@@ -19,7 +19,10 @@ import {
 import { executeOssStaticAudit, executeOssLhrAudit } from './oss-engine/audit-orchestrator.js';
 import { detectChromiumAvailability, runLiveLighthouseAudit } from './oss-engine/lighthouse-runner.js';
 import { fetchOssWebStandardsGrounding } from './oss-engine/standards-registry.js';
-import { detectGithubSshReadiness } from './oss-engine/ssh-diagnostics.js';
+import {
+  detectGithubSshReadiness,
+  diagnoseGitRemotePush
+} from './oss-engine/ssh-diagnostics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -435,6 +438,40 @@ export async function handleFresnelApiRequest(req, res) {
         success: false,
         error: err?.message || 'Push command failed.',
         errorCode: 'PUSH_ERROR'
+      });
+    }
+    return true;
+  }
+
+  // 1a-3. POST /api/git/ls-remote-diagnostic (Authenticated git ls-remote push failure root-cause analyzer)
+  if (req.method === 'POST' && pathname === '/api/git/ls-remote-diagnostic') {
+    try {
+      const body = await readJsonBody(req);
+      const repoUrl = String(body.repoUrl || '').trim();
+      const protocol =
+        body.protocol === 'ssh' || body.protocol === 'https' ? body.protocol : 'auto';
+      const headBranch = String(body.headBranch || 'main').trim();
+      const authHdr = req.headers?.authorization;
+      const bearerToken =
+        typeof authHdr === 'string' && authHdr.startsWith('Bearer ')
+          ? authHdr.slice(7).trim()
+          : '';
+      const githubToken = bearerToken || (typeof body.githubToken === 'string' ? body.githubToken.trim() : '');
+
+      const diagnostic = await diagnoseGitRemotePush({
+        repoUrl,
+        protocol,
+        githubToken,
+        headBranch
+      });
+      sendJson(res, 200, diagnostic);
+    } catch (err) {
+      sendJson(res, 500, {
+        ok: false,
+        rootCause: 'invalid_push_url',
+        headline: 'Diagnostic Execution Failed',
+        summary: err?.message || 'Unable to execute git ls-remote diagnostic.',
+        resolutionSteps: []
       });
     }
     return true;

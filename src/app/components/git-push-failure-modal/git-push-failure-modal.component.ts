@@ -13,6 +13,11 @@ import {
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import {
+  GitLsRemoteDiagnosticResult,
+  GitPushDiagnosticService,
+  GitPushRootCause
+} from '../../services/git-push-diagnostic.service';
 
 export interface SshReadinessDiagnostic {
   hasSshDirectory: boolean;
@@ -178,6 +183,122 @@ export interface PushFailureStepItem {
               </div>
             </div>
           }
+
+          <!-- Authenticated git ls-remote Root-Cause Diagnostic -->
+          <div class="ls-remote-diag-card" role="region" aria-label="Authenticated git ls-remote push diagnostic">
+            <div class="ls-remote-diag-card__head">
+              <div>
+                <span class="push-failure-badge push-failure-badge--accent">git ls-remote Diagnostic</span>
+                <h3 class="ls-remote-diag-card__title">Pinpoint Root Cause (SSH Keys vs. Permissions vs. Push URL)</h3>
+              </div>
+              <button
+                type="button"
+                id="run-ls-remote-diagnostic-btn"
+                class="dashboard-inline-btn dashboard-inline-btn--primary"
+                [disabled]="pushDiagnostic.isRunning()"
+                (click)="onRunLsRemoteDiagnostic()"
+              >
+                {{ pushDiagnostic.isRunning() ? 'Running git ls-remote…' : 'Run git ls-remote Check' }}
+              </button>
+            </div>
+
+            <div class="ls-remote-diag-card__controls">
+              <div class="ls-remote-diag-card__url-field">
+                <label for="ls-remote-target-url-input" class="push-failure-email-label">
+                  Target Repository Push URL (SSH or HTTPS):
+                </label>
+                <input
+                  id="ls-remote-target-url-input"
+                  type="text"
+                  class="push-failure-email-input"
+                  [value]="diagnosticTargetUrl()"
+                  (input)="onDiagnosticUrlInput($event)"
+                  placeholder="git@github.com:owner/repository.git or https://github.com/owner/repository.git"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="ls-remote-diag-card__proto-group" role="group" aria-label="Diagnostic protocol">
+                <button
+                  type="button"
+                  class="dashboard-inline-btn"
+                  [class.dashboard-inline-btn--primary]="diagnosticProtocol() === 'auto'"
+                  (click)="diagnosticProtocol.set('auto')"
+                >
+                  Auto
+                </button>
+                <button
+                  type="button"
+                  class="dashboard-inline-btn"
+                  [class.dashboard-inline-btn--primary]="diagnosticProtocol() === 'ssh'"
+                  (click)="diagnosticProtocol.set('ssh')"
+                >
+                  SSH
+                </button>
+                <button
+                  type="button"
+                  class="dashboard-inline-btn"
+                  [class.dashboard-inline-btn--primary]="diagnosticProtocol() === 'https'"
+                  (click)="diagnosticProtocol.set('https')"
+                >
+                  HTTPS
+                </button>
+              </div>
+            </div>
+
+            @if (lsRemoteResult(); as diag) {
+              <div
+                class="ls-remote-diag-result"
+                [class.is-ok]="diag.ok"
+                [class.is-error]="!diag.ok"
+                role="status"
+                aria-live="polite"
+              >
+                <div class="ls-remote-diag-result__head">
+                  <span class="ls-remote-diag-result__cause">
+                    {{ rootCauseLabel(diag.rootCause) }}
+                  </span>
+                  <strong>{{ diag.headline }}</strong>
+                </div>
+                <p class="ls-remote-diag-result__summary">{{ diag.summary }}</p>
+
+                <div class="ls-remote-diag-result__meta">
+                  <span>Command: <code>{{ diag.commandExecuted }}</code></span>
+                  @if (diag.refsCount > 0) {
+                    <span aria-hidden="true">·</span>
+                    <span>{{ diag.refsCount }} remote branches (default: <code>{{ diag.defaultBranch || 'main' }}</code>)</span>
+                  }
+                </div>
+
+                @if (diag.stderr) {
+                  <pre class="push-failure-code-block"><code>{{ diag.stderr }}</code></pre>
+                }
+
+                @if (diag.resolutionSteps.length > 0) {
+                  <div class="ls-remote-diag-steps">
+                    <span class="ls-remote-diag-steps__label">Explicit Resolution Steps:</span>
+                    <ol class="ls-remote-diag-steps__list">
+                      @for (resStep of diag.resolutionSteps; track resStep.title; let sIdx = $index) {
+                        <li class="ls-remote-diag-step">
+                          <div class="ls-remote-diag-step__head">
+                            <strong>{{ sIdx + 1 }}. {{ resStep.title }}</strong>
+                            <button
+                              type="button"
+                              class="copy-btn copy-btn--subtle"
+                              (click)="copyText('diag-' + sIdx, resStep.command)"
+                            >
+                              {{ copiedKey() === 'diag-' + sIdx ? 'Copied' : 'Copy' }}
+                            </button>
+                          </div>
+                          <p class="ls-remote-diag-step__detail">{{ resStep.detail }}</p>
+                          <pre class="push-failure-code-block"><code>{{ resStep.command }}</code></pre>
+                        </li>
+                      }
+                    </ol>
+                  </div>
+                }
+              </div>
+            }
+          </div>
 
           <!-- Automated SSH Key Status Detector -->
           <div class="push-failure-status-card" role="region" aria-label="Automated SSH readiness detector">
@@ -370,6 +491,7 @@ export interface PushFailureStepItem {
 export class GitPushFailureModalComponent {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  readonly pushDiagnostic = inject(GitPushDiagnosticService);
 
   readonly isOpen = input.required<boolean>();
   readonly pushError = input<string | null>(null);
@@ -394,6 +516,11 @@ export class GitPushFailureModalComponent {
   readonly isDirectPushing = signal<boolean>(false);
   readonly directPushResult = signal<{ success: boolean; message: string; commitUrl?: string } | null>(null);
   readonly pastedPublicKey = signal<string>('');
+  readonly diagnosticTargetUrl = signal<string>('');
+  readonly diagnosticProtocol = signal<'auto' | 'ssh' | 'https'>('auto');
+  readonly lsRemoteResult = computed<GitLsRemoteDiagnosticResult | null>(() =>
+    this.pushDiagnostic.lastResult()
+  );
 
   readonly publicKeyValidation = computed<{ valid: boolean; message: string } | null>(() => {
     const raw = this.pastedPublicKey().trim();
@@ -486,6 +613,10 @@ export class GitPushFailureModalComponent {
         if (email && !this.userEmail()) {
           this.userEmail.set(email);
         }
+        const initialUrl = this.repoUrl() || `https://github.com/${this.repoFullName()}`;
+        if (initialUrl && !this.diagnosticTargetUrl()) {
+          this.diagnosticTargetUrl.set(initialUrl);
+        }
         void this.checkSshReadiness();
       }
     });
@@ -542,6 +673,39 @@ export class GitPushFailureModalComponent {
   onPublicKeyPaste(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.pastedPublicKey.set(input?.value ?? '');
+  }
+
+  onDiagnosticUrlInput(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.diagnosticTargetUrl.set(input?.value ?? '');
+  }
+
+  rootCauseLabel(cause: GitPushRootCause): string {
+    switch (cause) {
+      case 'invalid_push_url':
+        return 'Invalid Push URL';
+      case 'missing_ssh_keys':
+        return 'Missing SSH Keys';
+      case 'incorrect_permissions':
+        return 'Incorrect Permissions';
+      case 'ready':
+        return 'Remote Verified';
+    }
+  }
+
+  async onRunLsRemoteDiagnostic(): Promise<void> {
+    const target =
+      this.diagnosticTargetUrl().trim() ||
+      this.repoUrl() ||
+      `https://github.com/${this.repoFullName()}`;
+    const token = this.directPushToken().trim() || this.githubAccessToken() || null;
+    await this.pushDiagnostic.runLsRemoteDiagnostic({
+      repoUrl: target,
+      protocol: this.diagnosticProtocol(),
+      headBranch: this.headBranch() || 'main',
+      githubToken: token,
+      originalErrorText: this.effectivePushError()
+    });
   }
 
   onEmailInput(event: Event): void {

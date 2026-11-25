@@ -51,7 +51,7 @@
   </div>
 
   <div class="topbar__right">
-    @let headerSession = fbAuth.userSession();
+    @let headerSession = authService.userSession();
 
     @if (!headerSession.isAuthenticated) {
       <!-- Google Identity Services Client-Side Sign-In Button (sibling to github-login-btn) -->
@@ -59,9 +59,9 @@
         type="button"
         id="google-login-btn"
         class="auth-pill-btn auth-pill-btn--google"
-        [disabled]="fbAuth.isSigningIn()"
+        [disabled]="authService.isSigningIn()"
         (click)="onGoogleLoginClick()"
-        title="Sign in with Google Identity Services to sync your authenticated audit history profile"
+        title="Sign in with Google to sync and cache your profile and audit history locally"
         aria-label="Sign in with Google"
       >
         <svg viewBox="0 0 18 18" aria-hidden="true">
@@ -70,7 +70,7 @@
           <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9.01 9.01 0 0 0 0 8.08l3-2.33z"/>
           <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.12.96 5.96l3 2.33c.71-2.13 2.7-3.71 5.04-3.71z"/>
         </svg>
-        <span>{{ fbAuth.isSigningIn() ? 'Signing in…' : 'Google Login' }}</span>
+        <span>{{ authService.isSigningIn() ? 'Signing in…' : 'Google Login' }}</span>
       </button>
 
       <!-- Unified GitHub Login Header Button -->
@@ -78,7 +78,7 @@
         type="button"
         id="github-login-btn"
         class="auth-pill-btn auth-pill-btn--github"
-        [disabled]="fbAuth.isSigningIn()"
+        [disabled]="authService.isSigningIn()"
         (click)="onGithubLoginOrHistoryClick()"
         title="Sign in with GitHub OAuth to save and view your profile audit history"
       >
@@ -89,55 +89,129 @@
             d="M10 1.8a8.2 8.2 0 0 0-2.59 15.98c.41.07.56-.18.56-.4 0-.2-.01-.85-.01-1.54-2.06.38-2.6-.5-2.76-.96-.09-.24-.5-.96-.85-1.15-.29-.16-.7-.54-.01-.55.65-.01 1.11.6 1.27.85.74 1.24 1.92.89 2.39.68.07-.53.29-.89.52-1.1-1.83-.21-3.74-.91-3.74-4.05 0-.89.32-1.63.85-2.2-.08-.21-.37-1.05.08-2.18 0 0 .69-.22 2.26.84a7.7 7.7 0 0 1 4.12 0c1.57-1.06 2.26-.84 2.26-.84.45 1.13.16 1.97.08 2.18.53.57.85 1.31.85 2.2 0 3.15-1.92 3.84-3.75 4.05.3.26.56.75.56 1.52 0 1.1-.01 1.98-.01 2.26 0 .22.15.48.56.4A8.2 8.2 0 0 0 10 1.8z"
           />
         </svg>
-        <span>{{ fbAuth.isSigningIn() ? 'Signing in...' : 'GitHub Login' }}</span>
+        <span>{{ authService.isSigningIn() ? 'Signing in...' : 'GitHub Login' }}</span>
       </button>
     } @else {
-      <!-- Authenticated Profile Chip & Switcher -->
-      <button
-        type="button"
-        id="github-login-btn"
-        class="auth-pill-btn auth-pill-btn--github"
-        [class.is-active]="fbAuth.isHistoryDrawerOpen()"
-        [attr.aria-expanded]="fbAuth.isHistoryDrawerOpen()"
-        (click)="onGithubLoginOrHistoryClick()"
-        [title]="'Signed in as ' + headerSession.displayName + ' — click to view profile saved audit history'"
-      >
-        @if (headerSession.photoURL) {
-          <img
-            [src]="headerSession.photoURL"
-            [alt]="headerSession.displayName || 'User avatar'"
-            referrerpolicy="no-referrer"
-            style="width: 18px; height: 18px; border-radius: 999px; object-fit: cover;"
-          />
-        } @else if (headerSession.providerId === 'google.com') {
-          <svg viewBox="0 0 18 18" aria-hidden="true">
-            <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33C2.44 15.88 5.48 18 9 18z"/>
-            <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9.01 9.01 0 0 0 0 8.08l3-2.33z"/>
-            <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.12.96 5.96l3 2.33c.71-2.13 2.7-3.71 5.04-3.71z"/>
-          </svg>
-        } @else {
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
-              clip-rule="evenodd"
-              d="M10 1.8a8.2 8.2 0 0 0-2.59 15.98c.41.07.56-.18.56-.4 0-.2-.01-.85-.01-1.54-2.06.38-2.6-.5-2.76-.96-.09-.24-.5-.96-.85-1.15-.29-.16-.7-.54-.01-.55.65-.01 1.11.6 1.27.85.74 1.24 1.92.89 2.39.68.07-.53.29-.89.52-1.1-1.83-.21-3.74-.91-3.74-4.05 0-.89.32-1.63.85-2.2-.08-.21-.37-1.05.08-2.18 0 0 .69-.22 2.26.84a7.7 7.7 0 0 1 4.12 0c1.57-1.06 2.26-.84 2.26-.84.45 1.13.16 1.97.08 2.18.53.57.85 1.31.85 2.2 0 3.15-1.92 3.84-3.75 4.05.3.26.56.75.56 1.52 0 1.1-.01 1.98-.01 2.26 0 .22.15.48.56.4A8.2 8.2 0 0 0 10 1.8z"
-            />
-          </svg>
-        }
-        <span>{{ headerSession.displayName }}</span>
-      </button>
-
-      <div class="user-account-chip">
-        <span class="user-account-chip__provider">{{ fbAuth.userProviderBadge() }}</span>
+      <!-- Authenticated Account Dropdown Menu -->
+      <div id="account-dropdown-root" class="account-dropdown">
         <button
           type="button"
-          class="user-account-chip__signout"
-          (click)="fbAuth.signOutUser()"
-          title="Sign out of your account"
+          id="account-dropdown-btn"
+          class="auth-pill-btn account-dropdown__trigger"
+          [class.is-active]="authService.isAccountMenuOpen()"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="authService.isAccountMenuOpen()"
+          aria-controls="account-dropdown-menu"
+          (click)="authService.toggleAccountMenu()"
+          [title]="'Account menu for ' + authService.displayName()"
         >
-          Sign out
+          @if (authService.photoURL(); as avatarUrl) {
+            <img
+              [src]="avatarUrl"
+              [alt]="authService.displayName()"
+              referrerpolicy="no-referrer"
+              class="account-dropdown__avatar"
+            />
+          } @else if (headerSession.providerId === 'google.com') {
+            <svg viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33C2.44 15.88 5.48 18 9 18z"/>
+              <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9.01 9.01 0 0 0 0 8.08l3-2.33z"/>
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.12.96 5.96l3 2.33c.71-2.13 2.7-3.71 5.04-3.71z"/>
+            </svg>
+          } @else {
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M10 1.8a8.2 8.2 0 0 0-2.59 15.98c.41.07.56-.18.56-.4 0-.2-.01-.85-.01-1.54-2.06.38-2.6-.5-2.76-.96-.09-.24-.5-.96-.85-1.15-.29-.16-.7-.54-.01-.55.65-.01 1.11.6 1.27.85.74 1.24 1.92.89 2.39.68.07-.53.29-.89.52-1.1-1.83-.21-3.74-.91-3.74-4.05 0-.89.32-1.63.85-2.2-.08-.21-.37-1.05.08-2.18 0 0 .69-.22 2.26.84a7.7 7.7 0 0 1 4.12 0c1.57-1.06 2.26-.84 2.26-.84.45 1.13.16 1.97.08 2.18.53.57.85 1.31.85 2.2 0 3.15-1.92 3.84-3.75 4.05.3.26.56.75.56 1.52 0 1.1-.01 1.98-.01 2.26 0 .22.15.48.56.4A8.2 8.2 0 0 0 10 1.8z"
+              />
+            </svg>
+          }
+          <span>Account</span>
+          <svg
+            class="account-dropdown__caret"
+            [class.is-open]="authService.isAccountMenuOpen()"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
+
+        @if (authService.isAccountMenuOpen()) {
+          <div
+            id="account-dropdown-menu"
+            class="account-dropdown__menu"
+            role="menu"
+            aria-labelledby="account-dropdown-btn"
+          >
+            <div class="account-dropdown__header">
+              <div class="account-dropdown__identity">
+                <strong class="account-dropdown__name">{{ authService.displayName() }}</strong>
+                @if (authService.userEmail(); as email) {
+                  <span class="account-dropdown__email">{{ email }}</span>
+                }
+              </div>
+              <div class="account-dropdown__meta-row">
+                <span class="account-dropdown__provider">{{ authService.providerLabel() }}</span>
+                @if (headerSession.providerId === 'google.com' && authService.hasGoogleLocalCache()) {
+                  <span class="account-dropdown__cache-note">Profile &amp; history cached locally</span>
+                }
+              </div>
+            </div>
+
+            <div class="account-dropdown__items">
+              <button
+                type="button"
+                id="account-menu-audit-history-btn"
+                class="account-dropdown__item"
+                role="menuitem"
+                (click)="onAccountNavigateAuditHistory()"
+              >
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <circle cx="9" cy="9" r="6.8" />
+                  <path d="M9 5.3V9l2.6 1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Audit History</span>
+                <span class="account-dropdown__count">{{ allSavedAudits().length }}</span>
+              </button>
+
+              <button
+                type="button"
+                id="account-menu-saved-repos-btn"
+                class="account-dropdown__item"
+                role="menuitem"
+                (click)="onAccountNavigateSavedRepos()"
+              >
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <path d="M4.5 3.2h9a1.3 1.3 0 0 1 1.3 1.3v10.8l-5.8-3-5.8 3V4.5a1.3 1.3 0 0 1 1.3-1.3z" stroke-linejoin="round" />
+                </svg>
+                <span>Saved Repositories</span>
+              </button>
+            </div>
+
+            <div class="account-dropdown__divider" role="separator"></div>
+
+            <div class="account-dropdown__items">
+              <button
+                type="button"
+                id="account-menu-logout-btn"
+                class="account-dropdown__item account-dropdown__item--danger"
+                role="menuitem"
+                (click)="onAccountLogout()"
+              >
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <path d="M7 3.5H4.2A1.2 1.2 0 0 0 3 4.7v8.6a1.2 1.2 0 0 0 1.2 1.2H7M11.5 12.2 14.8 9l-3.3-3.2M14.6 9H7.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+        }
       </div>
     }
 
@@ -594,10 +668,10 @@
     >
       <app-audit-dashboard
         [savedAudits]="allSavedAudits()"
-        [userSession]="fbAuth.userSession()"
+        [userSession]="authService.userSession()"
         [isLoadingHistory]="fbAuth.isLoadingHistory()"
-        [isSigningIn]="fbAuth.isSigningIn()"
-        [authError]="fbAuth.authError()"
+        [isSigningIn]="authService.isSigningIn()"
+        [authError]="authService.authError()"
         [localNotice]="localAuditStorage.localNotice() || drawerImportError()"
         (startNewAudit)="openNewAudit()"
         (startDemoAudit)="onStartDemoAudit()"
@@ -611,8 +685,8 @@
         (importFile)="onImportLocalAuditFile($event)"
         (loadSampleAudits)="onLoadSampleAudits()"
         (openPushTroubleshooter)="onOpenPushTroubleshooter()"
-        (signInGithub)="fbAuth.signInWithGitHub()"
-        (signInGoogle)="fbAuth.signInWithGoogle()"
+        (signInGithub)="authService.loginWithGitHub()"
+        (signInGoogle)="authService.loginWithGoogle()"
       />
     </section>
   }

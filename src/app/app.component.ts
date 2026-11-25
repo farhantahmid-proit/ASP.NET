@@ -11,6 +11,7 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { AuditService } from './services/audit.service';
+import { AuthService } from './services/auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { LocalAuditStorageService } from './services/local-audit-storage.service';
 import { FresnelLogoComponent } from './components/fresnel-logo/fresnel-logo.component';
@@ -57,13 +58,15 @@ export interface CategoryTabItem {
   styleUrl: './app.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '(window:keydown)': 'onGlobalKeyDown($event)'
+    '(window:keydown)': 'onGlobalKeyDown($event)',
+    '(document:click)': 'onDocumentClick($event)'
   }
 })
 export class AppComponent {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
   readonly audit = inject(AuditService);
+  readonly authService = inject(AuthService);
   readonly fbAuth = inject(FirebaseAuthService);
   readonly localAuditStorage = inject(LocalAuditStorageService);
   readonly repoUrl = signal<string>('');
@@ -146,7 +149,22 @@ export class AppComponent {
     return Boolean(target.closest('[contenteditable="true"]'));
   }
 
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.authService.isAccountMenuOpen()) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('#account-dropdown-root')) {
+      return;
+    }
+    this.authService.closeAccountMenu();
+  }
+
   onGlobalKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.authService.isAccountMenuOpen()) {
+      event.preventDefault();
+      this.authService.closeAccountMenu();
+      return;
+    }
+
     if (event.key === 'Escape' && this.audit.isSummaryModalOpen()) {
       event.preventDefault();
       this.audit.dismissSummaryModal();
@@ -187,7 +205,7 @@ export class AppComponent {
 
   readonly allSavedAudits = computed<(SavedAuditHistoryRecord | LocalSavedAuditRecord)[]>(() => {
     const merged = new Map<string, SavedAuditHistoryRecord | LocalSavedAuditRecord>();
-    for (const cloudRec of this.fbAuth.savedAudits()) {
+    for (const cloudRec of this.authService.syncedAccountAudits()) {
       merged.set(cloudRec.auditId, cloudRec);
     }
     for (const localRec of this.localAuditStorage.localAudits()) {
@@ -535,11 +553,61 @@ export class AppComponent {
   }
 
   async onGoogleLoginClick(): Promise<void> {
-    await this.fbAuth.signInWithGoogle();
+    await this.authService.loginWithGoogle();
   }
 
   async onGithubLoginOrHistoryClick(): Promise<void> {
-    await this.fbAuth.handleGithubAuthOrProfileHistory();
+    if (this.authService.isAuthenticated()) {
+      this.authService.toggleAccountMenu();
+      return;
+    }
+    await this.authService.loginWithGitHub();
+  }
+
+  onAccountNavigateAuditHistory(): void {
+    this.authService.closeAccountMenu();
+    this.fbAuth.isHistoryDrawerOpen.set(false);
+    this.audit.stopPolling();
+    if (this.audit.step() !== 0) {
+      this.audit.transitionToStep(0);
+    }
+    if (this.authService.isAuthenticated()) {
+      void this.fbAuth.fetchSavedAuditsFromFirestore();
+    }
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        const heading = document.getElementById('all-runs-heading');
+        if (heading) {
+          heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          this.fbAuth.isHistoryDrawerOpen.set(true);
+        }
+      }, 140);
+    }
+  }
+
+  onAccountNavigateSavedRepos(): void {
+    this.authService.closeAccountMenu();
+    this.fbAuth.isHistoryDrawerOpen.set(false);
+    this.audit.stopPolling();
+    if (this.audit.step() !== 0) {
+      this.audit.transitionToStep(0);
+    }
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        const heading =
+          document.getElementById('recent-repos-heading') ||
+          document.getElementById('dashboard-recent-cache-strip');
+        if (heading) {
+          heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 140);
+    }
+  }
+
+  async onAccountLogout(): Promise<void> {
+    await this.authService.logout();
+    this.showShortcutNotice('Signed out and cleared local Google profile cache.');
   }
 
   async onSaveAuditToAccount(): Promise<void> {
