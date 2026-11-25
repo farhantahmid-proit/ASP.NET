@@ -261,6 +261,26 @@ export class FirebaseAuthService {
     }
   }
 
+  /**
+   * Exchanges a Google Identity Services (GIS) JWT ID token with Firebase Auth
+   * without throwing fatal errors when offline or in client-only GIS sessions.
+   */
+  async signInWithGoogleIdToken(idToken: string): Promise<boolean> {
+    if (!idToken || typeof idToken !== 'string') return false;
+    this.isSigningIn.set(true);
+    this.authError.set(null);
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+      this.showGithubSetupModal.set(false);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      this.isSigningIn.set(false);
+    }
+  }
+
   async signOutUser(): Promise<void> {
     this.unsubscribeFromUserAudits();
     await signOut(auth);

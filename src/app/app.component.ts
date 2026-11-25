@@ -24,6 +24,7 @@ import { AuditDashboardComponent } from './components/audit-dashboard/audit-dash
 import { SavedAuditsDrawerComponent } from './components/saved-audits-drawer/saved-audits-drawer.component';
 import { GithubSshGuideComponent } from './components/github-ssh-guide/github-ssh-guide.component';
 import { GitPushFailureModalComponent } from './components/git-push-failure-modal/git-push-failure-modal.component';
+import { GoogleIdentityButtonComponent } from './components/google-identity-button/google-identity-button.component';
 import {
   CachedRepositoryAuditEntry,
   GitHubRepoIssue,
@@ -53,7 +54,8 @@ export interface CategoryTabItem {
     AuditDashboardComponent,
     SavedAuditsDrawerComponent,
     GithubSshGuideComponent,
-    GitPushFailureModalComponent
+    GitPushFailureModalComponent,
+    GoogleIdentityButtonComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
