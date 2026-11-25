@@ -1,0 +1,246 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Publicly scoped user account profile linked to Firebase Authentication (GitHub OAuth or Google OAuth) with PII isolated.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name or GitHub handle.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "githubUsername": {
+          "type": "string",
+          "description": "GitHub login username from OAuth profile.",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar URL from OAuth provider.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "providerId": {
+          "type": "string",
+          "description": "Primary OAuth provider identifier (e.g. github.com or google.com).",
+          "enum": ["github.com", "google.com"],
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the user profile was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the user profile was last updated."
+        }
+      },
+      "required": ["uid", "displayName", "githubUsername", "photoURL", "providerId", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII subcollection document storing user email address.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID owning this private record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address from OAuth provider.",
+          "minLength": 0,
+          "maxLength": 254
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "AuditHistoryRecord": {
+      "title": "AuditHistoryRecord",
+      "description": "Saved code audit snapshot with before-vs-after performance, accessibility, best-practices, SEO, and security impact metrics and selected commits.",
+      "type": "object",
+      "properties": {
+        "auditId": {
+          "type": "string",
+          "description": "Unique identifier of the saved audit record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who saved this audit.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "repoFullName": {
+          "type": "string",
+          "description": "GitHub repository owner/name.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "repoUrl": {
+          "type": "string",
+          "description": "Full GitHub repository URL.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "runPhase": {
+          "type": "string",
+          "description": "Audit run phase: static (Run 1) or lhr (Run 2 Lighthouse JSON).",
+          "enum": ["static", "lhr"],
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "mode": {
+          "type": "string",
+          "description": "Execution mode: live or demo.",
+          "enum": ["live", "demo"],
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "totalCommitsCount": {
+          "type": "number",
+          "description": "Total number of generated atomic commits in the audit."
+        },
+        "selectedCommitsCount": {
+          "type": "number",
+          "description": "Number of commits selected for the patch / PR."
+        },
+        "performanceBefore": {
+          "type": "number",
+          "description": "Baseline Performance metric index (0-100) before selected commits."
+        },
+        "performanceAfter": {
+          "type": "number",
+          "description": "Projected Performance metric index (0-100) after applying selected commits."
+        },
+        "accessibilityBefore": {
+          "type": "number",
+          "description": "Baseline Accessibility metric index (0-100) before selected commits."
+        },
+        "accessibilityAfter": {
+          "type": "number",
+          "description": "Projected Accessibility metric index (0-100) after applying selected commits."
+        },
+        "bestPracticesBefore": {
+          "type": "number",
+          "description": "Baseline Best Practices metric index (0-100) before selected commits."
+        },
+        "bestPracticesAfter": {
+          "type": "number",
+          "description": "Projected Best Practices metric index (0-100) after applying selected commits."
+        },
+        "seoBefore": {
+          "type": "number",
+          "description": "Baseline SEO metric index (0-100) before selected commits."
+        },
+        "seoAfter": {
+          "type": "number",
+          "description": "Projected SEO metric index (0-100) after applying selected commits."
+        },
+        "securityBefore": {
+          "type": "number",
+          "description": "Baseline Web Application Security hygiene index (0-100) before selected commits."
+        },
+        "securityAfter": {
+          "type": "number",
+          "description": "Projected Web Application Security hygiene index (0-100) after applying selected commits."
+        },
+        "summaryNotes": {
+          "type": "string",
+          "description": "Summary of categories and key metrics improved by the selected commits.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "commitTitles": {
+          "type": "array",
+          "description": "Bounded list (max 25) of imperative commit headlines included in this saved audit."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the audit was saved."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the saved audit was last updated."
+        }
+      },
+      "required": [
+        "auditId",
+        "ownerId",
+        "repoFullName",
+        "repoUrl",
+        "runPhase",
+        "mode",
+        "totalCommitsCount",
+        "selectedCommitsCount",
+        "performanceBefore",
+        "performanceAfter",
+        "accessibilityBefore",
+        "accessibilityAfter",
+        "bestPracticesBefore",
+        "bestPracticesAfter",
+        "seoBefore",
+        "seoAfter",
+        "securityBefore",
+        "securityAfter",
+        "summaryNotes",
+        "commitTitles",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "User account profile document keyed by Firebase Auth UID (PII excluded)."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": {
+        "$ref": "#/entities/UserPrivateInfo"
+      },
+      "description": "Isolated PII subcollection storing private user email."
+    },
+    "/users/{userId}/audits/{auditId}": {
+      "schema": {
+        "$ref": "#/entities/AuditHistoryRecord"
+      },
+      "description": "Saved audit history subcollection stored directly under the authenticated user's Firestore profile."
+    },
+    "/audits/{auditId}": {
+      "schema": {
+        "$ref": "#/entities/AuditHistoryRecord"
+      },
+      "description": "Saved personal audit history records containing before-vs-after metric impact and selected commit summaries."
+    }
+  }
+}

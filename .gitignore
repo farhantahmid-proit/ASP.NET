@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.angular/
+.aistudio/
+.env
+.env.*
+!.env.example
+.dev.env.json
+DRAFT_firestore.rules
+*.log
+*.zip
+.DS_Store
+.git/
+server/runtime-env.json
+public/assets/aistudio/
