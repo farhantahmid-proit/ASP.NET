@@ -1,6 +1,6 @@
 import {
-  AstWorkerRequestPayload,
-  AstWorkerResponsePayload,
+  type AstWorkerRequestPayload,
+  type AstWorkerResponsePayload,
   analyzeSourceFilesWithAcorn
 } from './ast-analyzer.engine';
 

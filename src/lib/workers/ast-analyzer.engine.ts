@@ -1,5 +1,5 @@
 import { parse as acornParse, type Node as AcornNode } from 'acorn';
-import {
+import type {
   AuditCommit,
   AuditImpactMetrics,
   AuditSession,

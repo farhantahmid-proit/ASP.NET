@@ -1,5 +1,5 @@
 import { ReactiveStore } from './reactive-state';
-import {
+import type {
   LocalAuditFormat,
   LocalSavedAuditRecord,
   SavedAuditHistoryRecord

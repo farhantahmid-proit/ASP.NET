@@ -1,11 +1,11 @@
 import { parse as acornParse, type Node as AcornNode } from 'acorn';
 import {
-  AstAuditExecutionSummary,
-  AstWorkerProgressPayload,
-  ImportedSourceFile,
+  type AstAuditExecutionSummary,
+  type AstWorkerProgressPayload,
+  type ImportedSourceFile,
   analyzeSourceFilesWithAcorn
 } from './ast-analyzer.engine';
-import { AuditCommit, AuditImpactMetrics, AuditSession } from '@/types/audit';
+import type { AuditCommit, AuditImpactMetrics, AuditSession } from '@/types/audit';
 
 export interface CodeAnalysisAnalyzeMessage {
   type: 'analyze';

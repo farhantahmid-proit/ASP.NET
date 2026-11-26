@@ -1,4 +1,4 @@
-import { LocalSavedAuditRecord } from '@/types/audit';
+import type { LocalSavedAuditRecord } from '@/types/audit';
 
 export const FRESNEL_INDEXEDDB_NAME = 'fresnel_audits_db';
 export const FRESNEL_INDEXEDDB_VERSION = 1;

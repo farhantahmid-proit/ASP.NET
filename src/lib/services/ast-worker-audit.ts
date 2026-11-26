@@ -1,9 +1,9 @@
 import { ReactiveStore } from './reactive-state';
-import {
+import type {
   LocalAuditFormat,
   LocalSavedAuditRecord
 } from '@/types/audit';
-import {
+import type {
   AstAuditExecutionSummary,
   ImportedSourceFile
 } from '@/lib/workers/ast-analyzer.engine';

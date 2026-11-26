@@ -1,4 +1,4 @@
-import {
+import type {
   ComparableAuditRun,
   MetricComparisonRow,
 } from '@/types/comparison';

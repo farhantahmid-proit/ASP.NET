@@ -1,5 +1,5 @@
 import { ReactiveStore } from './reactive-state';
-import {
+import type {
   AuditCommit,
   AuditImpactMetrics,
   AuditMode,
@@ -891,9 +891,6 @@ function parseJsonAuditRecords(rawContent: string): LocalSavedAuditRecord[] {
   return [normalizeParsedRecord({ ...candidate, repoFullName }, 'json')];
 }
 
-function parseJsonAudit(rawContent: string): LocalSavedAuditRecord {
-  return parseJsonAuditRecords(rawContent)[0];
-}
 
 function parseToonAudit(rawContent: string): LocalSavedAuditRecord {
   const lines = rawContent.split(/\r?\n/);
