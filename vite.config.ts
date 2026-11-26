@@ -38,7 +38,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.{js,mjs,ts}'],
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      'server/**/*.test.{js,mjs,ts}',
+      'browser-ext/**/*.test.{js,mjs,ts}',
+    ],
     exclude: ['spec/**', 'tests/**', 'dist/**', 'node_modules/**'],
   },
 })

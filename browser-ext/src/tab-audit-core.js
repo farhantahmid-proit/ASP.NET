@@ -1,37 +1,22 @@
 /**
- * Fresnel Companion Chrome Extension — Popup Controller (Manifest V3)
- *
- * Audits the currently active logged-in browser tab using chrome.scripting.executeScript,
- * generates a `fresnel-audit-json/v1` payload compatible with Fresnel's Saved Audits
- * importer, and supports instant JSON download or clipboard copy.
+ * Pure DOM audit scanner, `fresnel-audit-json/v1` payload builder, and deep-link validator.
+ * Zero external dependencies — safe to run in browser MV3 popups and Node Vitest.
  */
-
-let latestFresnelPayload = null;
-
-const runBtn = document.getElementById('run-audit-btn');
-const exportBtn = document.getElementById('export-json-btn');
-const copyBtn = document.getElementById('copy-json-btn');
-const statusBox = document.getElementById('status-box');
-const scoresGrid = document.getElementById('scores-grid');
-const findingsList = document.getElementById('findings-list');
-
-function setStatus(text) {
-  if (statusBox) statusBox.textContent = text;
-}
 
 /**
  * Executed inside the inspected active tab's DOM context.
- * Self-contained so it works cleanly on authenticated staging/production tabs.
+ * Strictly self-contained (no outer closures) so `scripting.executeScript` serializes cleanly.
  */
-function inspectActiveTabDom() {
+export function inspectActiveTabDom() {
   const findings = [];
   const pageUrl = window.location.href;
   const hostname = window.location.hostname || 'local-tab';
   const pathname = window.location.pathname || '/';
+  const tabFile = `tab${pathname === '/' ? '/index.html' : pathname}`;
 
   // 1. Accessibility (WCAG 2.1/2.2 checks)
   const imgsMissingAlt = Array.from(document.querySelectorAll('img')).filter(
-    (img) => !img.hasAttribute('alt')
+    (img) => !img.hasAttribute('alt'),
   );
   if (imgsMissingAlt.length > 0) {
     findings.push({
@@ -39,7 +24,7 @@ function inspectActiveTabDom() {
       ruleId: 'image-alt',
       title: `Add alt text to ${imgsMissingAlt.length} image(s) missing alt attributes`,
       summary: `Found ${imgsMissingAlt.length} <img> element(s) on ${pathname} without an alt attribute (WCAG 1.1.1).`,
-      files: [`tab${pathname === '/' ? '/index.html' : pathname}`]
+      files: [tabFile],
     });
   }
 
@@ -55,15 +40,19 @@ function inspectActiveTabDom() {
       ruleId: 'button-name',
       title: `Add accessible names to ${unlabeledButtons.length} icon-only button(s)`,
       summary: `Detected ${unlabeledButtons.length} <button> element(s) with no text or aria-label (WCAG 4.1.2).`,
-      files: [`tab${pathname === '/' ? '/index.html' : pathname}`]
+      files: [tabFile],
     });
   }
 
   const unlabeledInputs = Array.from(
-    document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea')
+    document.querySelectorAll(
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea',
+    ),
   ).filter((el) => {
     const id = el.getAttribute('id');
-    const hasForLabel = id ? Boolean(document.querySelector(`label[for="${CSS.escape(id)}"]`)) : false;
+    const hasForLabel = id
+      ? Boolean(document.querySelector(`label[for="${CSS.escape(id)}"]`))
+      : false;
     const wrappedByLabel = Boolean(el.closest('label'));
     const hasAria = Boolean(el.getAttribute('aria-label') || el.getAttribute('aria-labelledby'));
     return !hasForLabel && !wrappedByLabel && !hasAria;
@@ -74,7 +63,7 @@ function inspectActiveTabDom() {
       ruleId: 'label',
       title: `Associate labels with ${unlabeledInputs.length} form control(s)`,
       summary: `Detected ${unlabeledInputs.length} input/select/textarea element(s) missing a programmatic label.`,
-      files: [`tab${pathname === '/' ? '/index.html' : pathname}`]
+      files: [tabFile],
     });
   }
 
@@ -84,7 +73,7 @@ function inspectActiveTabDom() {
       ruleId: 'html-has-lang',
       title: 'Add lang attribute to root <html> element',
       summary: 'The <html> element is missing a valid lang attribute (WCAG 3.1.1).',
-      files: ['index.html']
+      files: ['index.html'],
     });
   }
 
@@ -94,7 +83,7 @@ function inspectActiveTabDom() {
       ruleId: 'landmark-one-main',
       title: 'Add a <main> landmark region for screen reader navigation',
       summary: 'Page lacks a primary <main> landmark element.',
-      files: ['index.html']
+      files: ['index.html'],
     });
   }
 
@@ -105,7 +94,7 @@ function inspectActiveTabDom() {
   const fcpMs = fcpEntry ? Math.round(fcpEntry.startTime) : null;
 
   const unsizedImages = Array.from(document.querySelectorAll('img')).filter(
-    (img) => !img.getAttribute('width') || !img.getAttribute('height')
+    (img) => !img.getAttribute('width') || !img.getAttribute('height'),
   );
   if (unsizedImages.length > 0) {
     findings.push({
@@ -113,12 +102,12 @@ function inspectActiveTabDom() {
       ruleId: 'unsized-images',
       title: `Add explicit width and height to ${unsizedImages.length} image(s) to prevent CLS`,
       summary: `${unsizedImages.length} image(s) lack explicit width/height attributes, risking Cumulative Layout Shift.`,
-      files: [`tab${pathname === '/' ? '/index.html' : pathname}`]
+      files: [tabFile],
     });
   }
 
   const renderBlockingScripts = Array.from(document.querySelectorAll('head script[src]')).filter(
-    (s) => !s.hasAttribute('defer') && !s.hasAttribute('async') && s.getAttribute('type') !== 'module'
+    (s) => !s.hasAttribute('defer') && !s.hasAttribute('async') && s.getAttribute('type') !== 'module',
   );
   if (renderBlockingScripts.length > 0) {
     findings.push({
@@ -126,11 +115,11 @@ function inspectActiveTabDom() {
       ruleId: 'render-blocking-resources',
       title: `Defer ${renderBlockingScripts.length} render-blocking script(s) in <head>`,
       summary: `Found ${renderBlockingScripts.length} synchronous <script src> tag(s) blocking First Contentful Paint.`,
-      files: ['index.html']
+      files: ['index.html'],
     });
   }
 
-  // 3. SEO checks
+  // 3. SEO & OpenGraph checks
   const metaDesc = document.querySelector('meta[name="description"]');
   if (!metaDesc || !(metaDesc.getAttribute('content') || '').trim()) {
     findings.push({
@@ -138,22 +127,35 @@ function inspectActiveTabDom() {
       ruleId: 'meta-description',
       title: 'Add a descriptive <meta name="description"> tag',
       summary: 'Document is missing a non-empty meta description for search snippets.',
-      files: ['index.html']
+      files: ['index.html'],
     });
   }
+
   if (!document.querySelector('link[rel="canonical"]')) {
     findings.push({
       category: 'seo',
       ruleId: 'canonical',
       title: 'Add a <link rel="canonical"> URL tag',
       summary: 'Canonical link tag is absent from document <head>.',
-      files: ['index.html']
+      files: ['index.html'],
     });
   }
 
-  // 4. Security & Best Practices checks
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  if (!ogTitle || !ogDesc) {
+    findings.push({
+      category: 'seo',
+      ruleId: 'open-graph-meta',
+      title: 'Add OpenGraph og:title and og:description metadata',
+      summary: 'Social sharing and AI citation previews benefit from explicit og:title and og:description tags.',
+      files: ['index.html'],
+    });
+  }
+
+  // 4. Security & Supply-Chain SRI checks
   const unsafeBlankLinks = Array.from(document.querySelectorAll('a[target="_blank"]')).filter(
-    (a) => !(a.getAttribute('rel') || '').toLowerCase().includes('noopener')
+    (a) => !(a.getAttribute('rel') || '').toLowerCase().includes('noopener'),
   );
   if (unsafeBlankLinks.length > 0) {
     findings.push({
@@ -161,22 +163,72 @@ function inspectActiveTabDom() {
       ruleId: 'external-anchors-use-rel-noopener',
       title: `Add rel="noopener noreferrer" to ${unsafeBlankLinks.length} target="_blank" link(s)`,
       summary: `Detected ${unsafeBlankLinks.length} external link(s) opening new tabs without noopener protection.`,
-      files: [`tab${pathname === '/' ? '/index.html' : pathname}`]
+      files: [tabFile],
     });
   }
 
-  if (window.location.protocol !== 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+  const externalScriptsNoSri = Array.from(document.querySelectorAll('script[src]')).filter((s) => {
+    try {
+      const srcUrl = new URL(s.getAttribute('src') || '', pageUrl);
+      return srcUrl.origin !== window.location.origin && !s.hasAttribute('integrity');
+    } catch {
+      return false;
+    }
+  });
+  if (externalScriptsNoSri.length > 0) {
+    findings.push({
+      category: 'security',
+      ruleId: 'script-subresource-integrity',
+      title: `Add Subresource Integrity (integrity) to ${externalScriptsNoSri.length} third-party script(s)`,
+      summary: `Found ${externalScriptsNoSri.length} cross-origin <script src> tag(s) without an SRI hash.`,
+      files: ['index.html'],
+    });
+  }
+
+  if (
+    window.location.protocol !== 'https:' &&
+    hostname !== 'localhost' &&
+    hostname !== '127.0.0.1'
+  ) {
     findings.push({
       category: 'security',
       ruleId: 'is-on-https',
       title: 'Serve application over HTTPS instead of insecure HTTP',
       summary: `Page loaded over ${window.location.protocol} without TLS encryption.`,
-      files: ['server.conf']
+      files: ['server.conf'],
     });
   }
 
+  // 5. Passive CMS / Framework hints
+  const techHints = [];
+  const generator = document.querySelector('meta[name="generator"]')?.getAttribute('content') || '';
+  if (
+    /wordpress/i.test(generator) ||
+    document.querySelector('link[href*="wp-content"], script[src*="wp-content"], link[href*="wp-includes"]')
+  ) {
+    techHints.push('WordPress');
+  }
+  if (document.getElementById('__NEXT_DATA__') || document.querySelector('script[src*="/_next/"]')) {
+    techHints.push('Next.js');
+  }
+  if (document.querySelector('[data-reactroot], #root')) {
+    techHints.push('React');
+  }
+  if (document.querySelector('[ng-version]')) {
+    techHints.push('Angular');
+  }
+  if (
+    typeof window.Shopify !== 'undefined' ||
+    document.querySelector('link[href*="cdn.shopify.com"], script[src*="cdn.shopify.com"]')
+  ) {
+    techHints.push('Shopify');
+  }
+
   const countByCat = (cat) => findings.filter((f) => f.category === cat).length;
-  const perfBefore = Math.max(40, 94 - countByCat('performance') * 12 - (ttfbMs && ttfbMs > 800 ? 10 : 0));
+  const perfBefore = Math.max(
+    40,
+    94 - countByCat('performance') * 12 - (ttfbMs && ttfbMs > 800 ? 10 : 0),
+  );
   const a11yBefore = Math.max(40, 96 - countByCat('accessibility') * 10);
   const seoBefore = Math.max(50, 96 - countByCat('seo') * 12);
   const secBefore = Math.max(50, 96 - countByCat('security') * 12);
@@ -189,20 +241,27 @@ function inspectActiveTabDom() {
     title: document.title || hostname,
     ttfbMs,
     fcpMs,
+    techHints,
     scores: {
       performance: perfBefore,
       accessibility: a11yBefore,
       bestPractices: bpBefore,
       seo: seoBefore,
-      security: secBefore
+      security: secBefore,
     },
-    findings
+    findings,
   };
 }
 
-function buildFresnelJsonPayload(scan) {
+/**
+ * Build a `fresnel-audit-json/v1` payload 100% compatible with Fresnel's `parseLocalAuditFile`.
+ * @param {ReturnType<typeof inspectActiveTabDom>} scan
+ * @param {{ browserFamily?: string }} [options]
+ */
+export function buildFresnelJsonPayload(scan, { browserFamily = 'chromium' } = {}) {
   const nowIso = new Date().toISOString();
-  const repoFullName = `chrome-ext/${scan.hostname}`;
+  const branch = `browser-ext-${browserFamily}`;
+  const repoFullName = `browser-ext/${scan.hostname}`;
   const commits = scan.findings.map((f, idx) => {
     const sha = `ext${String(idx + 1).padStart(2, '0')}b4`;
     return {
@@ -218,7 +277,7 @@ function buildFresnelJsonPayload(scan) {
       files: f.files,
       additions: 3,
       deletions: 1,
-      author: 'Fresnel Chrome Extension <extension@fresnel.local>',
+      author: `Fresnel Browser Extension (${browserFamily}) <extension@fresnel.local>`,
       date: new Date().toUTCString(),
       body: f.summary,
       diff: [
@@ -227,10 +286,15 @@ function buildFresnelJsonPayload(scan) {
         `+++ b/${f.files[0]}`,
         '@@ -1,1 +1,2 @@',
         ` <!-- Detected in live tab ${scan.pageUrl} -->`,
-        `+<!-- ${f.title.replace(/-->/g, '--')} -->`
-      ].join('\n')
+        `+<!-- ${f.title.replace(/-->/g, '--')} -->`,
+      ].join('\n'),
     };
   });
+
+  const techLabel =
+    Array.isArray(scan.techHints) && scan.techHints.length > 0
+      ? ` · Stack: ${scan.techHints.join(', ')}`
+      : '';
 
   return {
     format: 'fresnel-audit-json/v1',
@@ -240,7 +304,7 @@ function buildFresnelJsonPayload(scan) {
       ownerId: 'local',
       repoFullName,
       repoUrl: scan.pageUrl,
-      branch: 'chrome-extension-tab',
+      branch,
       runPhase: 'lhr',
       mode: 'live',
       totalCommitsCount: Math.max(1, commits.length),
@@ -255,7 +319,7 @@ function buildFresnelJsonPayload(scan) {
       seoAfter: Math.min(98, scan.scores.seo + 10),
       securityBefore: scan.scores.security,
       securityAfter: Math.min(98, scan.scores.security + 8),
-      summaryNotes: `Chrome Extension live tab scan of ${scan.pageUrl} (TTFB: ${scan.ttfbMs ?? 'N/A'} ms, FCP: ${scan.fcpMs ?? 'N/A'} ms). Found ${commits.length} findings.`,
+      summaryNotes: `Browser Extension (${browserFamily}) live tab scan of ${scan.pageUrl} (TTFB: ${scan.ttfbMs ?? 'N/A'} ms, FCP: ${scan.fcpMs ?? 'N/A'} ms${techLabel}). Found ${commits.length} findings.`,
       commitTitles: commits.map((c) => c.title).slice(0, 25),
       createdAtIso: nowIso,
       updatedAtIso: nowIso,
@@ -263,141 +327,64 @@ function buildFresnelJsonPayload(scan) {
       savedFormat: 'json',
       snapshotSession: {
         id: `ext_${Date.now().toString(36)}`,
-        interactionId: 'chrome-extension-live-tab',
-        engineType: 'chrome-extension-mv3',
+        interactionId: 'browser-ext-live-tab',
+        engineType: 'browser-ext-mv3',
         liveLighthouseAvailable: false,
         filesScanned: 1,
-        workspaceSource: 'chrome-extension-tab',
+        workspaceSource: branch,
         mode: 'live',
         runPhase: 'lhr',
         status: 'completed',
         progressPercent: 100,
         repo: {
-          owner: 'chrome-ext',
+          owner: 'browser-ext',
           repo: scan.hostname,
           fullName: repoFullName,
           url: scan.pageUrl,
-          isDemo: false
+          isDemo: false,
         },
-        branch: 'chrome-extension-tab',
+        branch,
         categories: ['performance', 'accessibility', 'best-practices', 'seo', 'security'],
         steps: [],
         totalSteps: 1,
         commits,
         totalCommits: commits.length,
-        pr: null
-      }
-    }
+        pr: null,
+      },
+    },
   };
 }
 
-function renderResults(scan) {
-  if (scoresGrid) {
-    scoresGrid.replaceChildren();
-    scoresGrid.hidden = false;
-    const entries = [
-      ['Perf', scan.scores.performance],
-      ['A11y', scan.scores.accessibility],
-      ['SEO', scan.scores.seo],
-      ['Sec', scan.scores.security]
-    ];
-    for (const [label, val] of entries) {
-      const box = document.createElement('div');
-      box.className = 'score-box';
-      const lbl = document.createElement('span');
-      lbl.className = 'score-label';
-      lbl.textContent = label;
-      const num = document.createElement('span');
-      num.className = 'score-val';
-      num.textContent = String(val);
-      box.appendChild(lbl);
-      box.appendChild(num);
-      scoresGrid.appendChild(box);
-    }
-  }
-
-  if (findingsList) {
-    findingsList.replaceChildren();
-    findingsList.hidden = false;
-    if (scan.findings.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'finding-item';
-      li.textContent = 'Zero critical issues detected on this tab.';
-      findingsList.appendChild(li);
-    } else {
-      for (const f of scan.findings) {
-        const li = document.createElement('li');
-        li.className = 'finding-item';
-        const cat = document.createElement('span');
-        cat.className = 'finding-cat';
-        cat.textContent = f.category;
-        const txt = document.createElement('span');
-        txt.textContent = f.title;
-        li.appendChild(cat);
-        li.appendChild(txt);
-        findingsList.appendChild(li);
-      }
-    }
-  }
-}
-
-runBtn?.addEventListener('click', async () => {
-  setStatus('Scanning active tab...');
-  runBtn.disabled = true;
+/**
+ * Validate and build a Fresnel deep-link URL for one-click handoff from the extension popup.
+ * Rejects non-http(s) app origins and target URLs (`javascript:`, `chrome://`, `about:`, `file://`).
+ * @param {{ appOrigin: string, routeMode?: 'standalone' | 'knowledgebase', targetUrl: string }} params
+ * @returns {string}
+ */
+export function buildFresnelDeepLink({ appOrigin, routeMode = 'standalone', targetUrl }) {
+  let parsedOrigin;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
-      setStatus('Open a standard http:// or https:// webpage to audit.');
-      return;
-    }
-
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: inspectActiveTabDom
-    });
-
-    if (!result) {
-      setStatus('Unable to read DOM from this tab.');
-      return;
-    }
-
-    latestFresnelPayload = buildFresnelJsonPayload(result);
-    renderResults(result);
-    exportBtn.disabled = false;
-    copyBtn.disabled = false;
-    setStatus(`Audited ${result.hostname}: ${result.findings.length} finding(s) ready for Fresnel.`);
-  } catch (err) {
-    setStatus(err?.message || 'Failed to inspect active tab.');
-  } finally {
-    runBtn.disabled = false;
-  }
-});
-
-exportBtn?.addEventListener('click', () => {
-  if (!latestFresnelPayload) return;
-  const host = latestFresnelPayload.record.repoFullName.replace(/[^a-zA-Z0-9._-]+/g, '-');
-  const blob = new Blob([JSON.stringify(latestFresnelPayload, null, 2)], {
-    type: 'application/json;charset=utf-8'
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `fresnel-${host}.json`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 150);
-  setStatus('Exported Fresnel JSON. Import it in Fresnel via "Import File" or "Saved Audits".');
-});
-
-copyBtn?.addEventListener('click', async () => {
-  if (!latestFresnelPayload) return;
-  try {
-    await navigator.clipboard.writeText(JSON.stringify(latestFresnelPayload, null, 2));
-    setStatus('Copied Fresnel JSON to clipboard.');
+    parsedOrigin = new URL((appOrigin || '').trim());
   } catch {
-    setStatus('Clipboard permission denied — use Download JSON instead.');
+    throw new Error('Enter a valid http:// or https:// Fresnel App URL.');
   }
-});
+  if (parsedOrigin.protocol !== 'http:' && parsedOrigin.protocol !== 'https:') {
+    throw new Error('Fresnel App URL must use http:// or https://.');
+  }
+
+  let parsedTarget;
+  try {
+    parsedTarget = new URL((targetUrl || '').trim());
+  } catch {
+    throw new Error('Open a standard http:// or https:// webpage to hand off to Fresnel.');
+  }
+  if (parsedTarget.protocol !== 'http:' && parsedTarget.protocol !== 'https:') {
+    throw new Error('Only http:// and https:// tabs can be audited in Fresnel.');
+  }
+
+  const routePrefix = routeMode === 'knowledgebase' ? '/fresnel' : '';
+  const dest = new URL(`${parsedOrigin.origin}${routePrefix}/audit/live`);
+  dest.searchParams.set('targetUrl', parsedTarget.href);
+  dest.searchParams.set('source', 'ext');
+  return dest.toString();
+}

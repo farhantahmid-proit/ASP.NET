@@ -304,7 +304,7 @@ export function LiveAuditSuite({
       try {
         const serialized = JSON.stringify(data.payload)
         if (serialized.length > 500_000) return
-        const parsed = storageService.readAuditFileContent('chrome-extension-live-tab.json', serialized)
+        const parsed = storageService.readAuditFileContent('browser-ext-live-tab.json', serialized)
         setLastImportedExtensionRecord(parsed)
         setExtensionStatus(
           `Imported "${parsed.repoFullName}" (${parsed.totalCommitsCount} findings) into Saved Audits.`,
@@ -615,17 +615,19 @@ export function LiveAuditSuite({
     setExtensionStatus(null)
     const trimmed = extensionJson.trim()
     if (!trimmed) {
-      setExtensionError('Paste or upload a Fresnel JSON export from the Companion Chrome Extension.')
+      setExtensionError(
+        'Paste or upload a Fresnel JSON export from the Companion Browser Extension (browser-ext/ — Chrome, Firefox, Edge, Brave, Opera).',
+      )
       return
     }
     try {
-      const parsed = storageService.readAuditFileContent('chrome-extension-audit.json', trimmed)
+      const parsed = storageService.readAuditFileContent('browser-ext-audit.json', trimmed)
       setLastImportedExtensionRecord(parsed)
       setExtensionStatus(`Imported "${parsed.repoFullName}" (${parsed.totalCommitsCount} findings).`)
       setExtensionJson('')
     } catch (err) {
       setExtensionError(
-        err instanceof Error ? err.message : 'Invalid Chrome Extension audit JSON payload.',
+        err instanceof Error ? err.message : 'Invalid Browser Extension audit JSON payload.',
       )
     }
   }

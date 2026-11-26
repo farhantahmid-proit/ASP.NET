@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fresnel Live Tab Auditor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="ext-header">
+      <div>
+        <p class="kicker">Fresnel Companion · MV3</p>
+        <h1>Live Tab Auditor</h1>
+      </div>
+      <span id="runtime-badge" class="runtime-badge">MV3</span>
+    </header>
+
+    <p class="desc">
+      Audit the active browser tab for WCAG, Core Web Vitals, SEO, OpenGraph, SRI, and tech stack,
+      or hand off directly to Fresnel's All-in-One Site Audit.
+    </p>
+
+    <div class="actions">
+      <button id="run-audit-btn" class="primary" type="button">Run Live Tab Audit</button>
+      <button id="deep-audit-btn" class="accent" type="button">
+        Deep Site Audit in Fresnel &rarr;
+      </button>
+      <div class="btn-row">
+        <button id="export-json-btn" type="button" disabled>Download JSON</button>
+        <button id="copy-json-btn" type="button" disabled>Copy JSON</button>
+      </div>
+    </div>
+
+    <div id="status-box" class="status" role="status" aria-live="polite"></div>
+    <div id="tech-row" class="tech-row" hidden></div>
+    <div id="scores-grid" class="scores" hidden></div>
+    <ul id="findings-list" class="findings-list" hidden></ul>
+
+    <details class="settings-panel">
+      <summary>Connection Settings</summary>
+      <div class="settings-body">
+        <label class="field-label" for="app-origin-input">Fresnel App URL</label>
+        <input
+          id="app-origin-input"
+          class="field-input"
+          type="url"
+          value="http://localhost:3000"
+          placeholder="http://localhost:3000"
+        />
+
+        <span class="field-label">Route Mode</span>
+        <div class="mode-group" role="radiogroup" aria-label="Fresnel route mode">
+          <label class="mode-option">
+            <input type="radio" name="route-mode" value="standalone" checked />
+            <span>Standalone (<code>/audit/live</code>)</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="route-mode" value="knowledgebase" />
+            <span>KnowledgeBaseAI (<code>/fresnel/audit/live</code>)</span>
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

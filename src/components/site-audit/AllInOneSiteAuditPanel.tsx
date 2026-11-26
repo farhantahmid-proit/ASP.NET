@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RadialScoreGauge } from '@/components/ui/RadialScoreGauge'
 import { useSiteAuditStatus, useStartSiteAudit } from '@/api/site-audit/site-audit.hooks'
 import { useSiteAuditStream } from '@/hooks/useSiteAuditStream'
@@ -167,6 +167,12 @@ export function AllInOneSiteAuditPanel({
   const [formError, setFormError] = useState<string | null>(null)
   const [savedRecord, setSavedRecord] = useState<LocalSavedAuditRecord | null>(null)
 
+  useEffect(() => {
+    if (initialUrl) {
+      setTargetUrl(initialUrl)
+    }
+  }, [initialUrl])
+
   const startMutation = useStartSiteAudit()
   const statusQuery = useSiteAuditStatus(sessionId || '')
   const session = statusQuery.data || null
@@ -208,6 +214,11 @@ export function AllInOneSiteAuditPanel({
   return (
     <div className="fr-site-stack">
       <section className="fr-card">
+        {source === 'ext' && (
+          <div className="fr-chip-row" style={{ marginBottom: 10 }} role="status">
+            <span className="fr-badge">Target received from Fresnel Browser Extension</span>
+          </div>
+        )}
         <form onSubmit={(e) => void handleSubmit(e)} className="fr-site-form">
           <div className="fr-site-form__url">
             <label className="fr-label" htmlFor="all-in-one-site-url">

@@ -12,6 +12,7 @@
     "build": "node scripts/build.mjs",
     "build:client": "vite build",
     "build:embed": "vite build --config vite.embed.config.ts",
+    "build:ext": "node browser-ext/build-ext.mjs",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
