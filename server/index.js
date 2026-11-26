@@ -25,14 +25,21 @@ import {
   diagnoseGitRemotePush
 } from './oss-engine/ssh-diagnostics.js';
 import { generateAiExecutiveSummary } from './oss-engine/executive-summary.js';
+import {
+  registerWorkspace,
+  loginWorkspace,
+  refreshWorkspaceToken,
+  getWorkspaceByAccessToken,
+  findWidgetByPublicKey
+} from './auth-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.join(__dirname, '..');
-const SRC_APP_DIR = path.join(ROOT_DIR, 'src', 'app');
+const SRC_DIR = path.join(ROOT_DIR, 'src');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 
-function resolveAngularDistDir() {
+function resolveClientDistDir() {
   const devBrowserDir = path.join(ROOT_DIR, 'dist', 'fresnel', 'browser');
   if (fs.existsSync(path.join(devBrowserDir, 'index.html'))) {
     return devBrowserDir;
@@ -44,28 +51,28 @@ function resolveAngularDistDir() {
   return devBrowserDir;
 }
 
-let angularBuildPromise = null;
+let clientBuildPromise = null;
 
 function cleanupLegacyVanillaFiles() {
   // No-op: preserve workspace files across shared instances
 }
 
-function isAngularDistFresh() {
+function isClientDistFresh() {
   try {
     // In a shared/deployed app.tar.gz container, /app/applet/browser/index.html is prebuilt
     const sharedIndex = path.join(ROOT_DIR, 'browser', 'index.html');
-    if (fs.existsSync(sharedIndex) && !fs.existsSync(SRC_APP_DIR)) {
+    if (fs.existsSync(sharedIndex) && !fs.existsSync(SRC_DIR)) {
       return true;
     }
-    const distDir = resolveAngularDistDir();
+    const distDir = resolveClientDistDir();
     const distIndex = path.join(distDir, 'index.html');
     if (!fs.existsSync(distIndex)) return false;
     const distMtime = fs.statSync(distIndex).mtimeMs;
     const trackedSourceFiles = [
-      path.join(SRC_APP_DIR, 'app.component.ts'),
-      path.join(SRC_APP_DIR, 'app.component.html'),
-      path.join(SRC_APP_DIR, 'services', 'audit.service.ts'),
-      path.join(ROOT_DIR, 'src', 'styles.scss')
+      path.join(SRC_DIR, 'main.tsx'),
+      path.join(SRC_DIR, 'router.ts'),
+      path.join(SRC_DIR, 'styles.css'),
+      path.join(ROOT_DIR, 'index.html')
     ];
     for (const srcFile of trackedSourceFiles) {
       if (fs.existsSync(srcFile) && fs.statSync(srcFile).mtimeMs > distMtime + 1000) {
@@ -78,38 +85,35 @@ function isAngularDistFresh() {
   }
 }
 
-function ensureAngularBuild() {
-  if (isAngularDistFresh()) {
+function ensureClientBuild() {
+  if (isClientDistFresh()) {
     return Promise.resolve(true);
   }
-  if (angularBuildPromise) {
-    return angularBuildPromise;
+  if (clientBuildPromise) {
+    return clientBuildPromise;
   }
   const buildScript = path.join(ROOT_DIR, 'scripts', 'build.mjs');
-  const ngBin = path.join(ROOT_DIR, 'node_modules', '.bin', 'ng');
-  if (!fs.existsSync(buildScript) && !fs.existsSync(ngBin)) {
-    return Promise.resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+  if (!fs.existsSync(buildScript)) {
+    return Promise.resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
   }
 
-  angularBuildPromise = new Promise((resolve) => {
-    const cmd = fs.existsSync(buildScript) ? process.execPath : ngBin;
-    const cmdArgs = fs.existsSync(buildScript) ? [buildScript] : ['build'];
-    const child = spawn(cmd, cmdArgs, {
+  clientBuildPromise = new Promise((resolve) => {
+    const child = spawn(process.execPath, [buildScript], {
       cwd: ROOT_DIR,
       stdio: 'ignore',
       detached: false
     });
     child.on('close', () => {
-      angularBuildPromise = null;
-      resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+      clientBuildPromise = null;
+      resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
     });
     child.on('error', () => {
-      angularBuildPromise = null;
-      resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+      clientBuildPromise = null;
+      resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
     });
   });
 
-  return angularBuildPromise;
+  return clientBuildPromise;
 }
 
 export function resolvePortAndHost() {
@@ -378,6 +382,75 @@ export async function handleFresnelApiRequest(req, res) {
       lore: FRESNEL_IDENTITY_LORE,
       sampleLhrJson: SAMPLE_LIGHTHOUSE_LHR_JSON
     });
+    return true;
+  }
+
+  // 1-auth. Workspace JWT Authentication & Embed Widget Metadata
+  if (req.method === 'POST' && pathname === '/api/workspaces/register') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = registerWorkspace(body);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/workspaces/auth/login') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = loginWorkspace(body);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/workspaces/auth/refresh') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = refreshWorkspaceToken(body?.refresh_token);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/workspaces/me') {
+    const authHdr = req.headers?.authorization || '';
+    const token = authHdr.startsWith('Bearer ') ? authHdr.slice(7).trim() : '';
+    const session = getWorkspaceByAccessToken(token);
+    if (!session) {
+      sendJson(res, 401, { detail: 'Authentication required.', error: 'Authentication required.' });
+      return true;
+    }
+    sendJson(res, 200, session);
+    return true;
+  }
+
+  const widgetInfoMatch = pathname.match(/^\/api\/widget\/([^/]+)\/meta$/);
+  if (req.method === 'GET' && widgetInfoMatch) {
+    const found = findWidgetByPublicKey(decodeURIComponent(widgetInfoMatch[1]));
+    if (!found) {
+      sendJson(res, 404, { detail: 'Widget key not found.', error: 'Widget key not found.' });
+      return true;
+    }
+    sendJson(res, 200, found);
     return true;
   }
 
@@ -1341,9 +1414,9 @@ export async function handleFresnelRequest(req, res) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
-    await ensureAngularBuild();
+    await ensureClientBuild();
 
-    const staticRoot = resolveAngularDistDir();
+    const staticRoot = resolveClientDistDir();
     let decodedPathname;
     try {
       decodedPathname = decodeURIComponent(pathname);
@@ -1368,6 +1441,11 @@ export async function handleFresnelRequest(req, res) {
       if (safePath === '/sw.js') {
         headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
         headers['Service-Worker-Allowed'] = '/';
+      }
+      if (safePath === '/widget.js') {
+        headers['Access-Control-Allow-Origin'] = '*';
+        headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
+        headers['Cache-Control'] = 'public, max-age=300';
       }
       if (ext === '.svg') {
         headers['X-Content-Type-Options'] = 'nosniff';
@@ -1400,7 +1478,7 @@ export async function handleFresnelRequest(req, res) {
       return;
     }
 
-    // Fallback to Angular index.html for extensionless SPA routes
+    // Fallback to Vite SPA index.html for extensionless SPA routes
     const indexFallback = path.join(staticRoot, 'index.html');
     if (fs.existsSync(indexFallback)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -1417,7 +1495,7 @@ export async function handleFresnelRequest(req, res) {
 
 export function startFresnelServer(port = PORT, host = HOST) {
   cleanupLegacyVanillaFiles();
-  void ensureAngularBuild();
+  void ensureClientBuild();
   const server = http.createServer(handleFresnelRequest);
   server.listen(port, host, () => {
     console.log(`[Fresnel] Zero-AI Open-Source Audit Server listening at http://${host}:${port}`);

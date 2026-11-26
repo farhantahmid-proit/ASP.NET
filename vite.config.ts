@@ -1,22 +1,44 @@
-import path from 'path';
-import { defineConfig } from 'vite';
+import path from 'node:path'
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 
-/**
- * AI Studio Full-Stack Vite Configuration
- *
- * Note: Do NOT expose process.env.GEMINI_API_KEY in a client `define` block.
- * All Gemini Managed Agent calls (/v1beta/interactions) run server-side via
- * server.ts and server/agent-client.js using phantom-gdemo-1.
- */
 export default defineConfig({
-  base: './',
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+      routeFileIgnorePrefix: '-',
+    }),
+    react(),
+  ],
   publicDir: 'public',
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.')
-    }
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  build: {
+    outDir: 'dist/fresnel/browser',
+    emptyOutDir: true,
+    sourcemap: false,
   },
   server: {
-    hmr: process.env.DISABLE_HMR !== 'true'
-  }
-});
+    port: 4200,
+    hmr: process.env.DISABLE_HMR !== 'true',
+    proxy: {
+      '/api': {
+        target: process.env.FRESNEL_API_ORIGIN || 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+    },
+  },
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.{js,mjs,ts}'],
+    exclude: ['legacy-angular/**', 'spec/**', 'tests/**', 'dist/**', 'node_modules/**'],
+  },
+})

@@ -1,0 +1,303 @@
+/* Scoped Fresnel Design System — Preserves Lavender / Violet / Plum brand tokens */
+body:has(.fresnel-root) {
+  margin: 0;
+  background: #ffffff;
+}
+
+body:has(.fresnel-root[data-theme='dark']) {
+  background: #190b28;
+}
+
+.fresnel-root {
+  --fresnel-100: #d5d0f3;
+  --fresnel-200: #c8b9e7;
+  --fresnel-500: #8b78d0;
+  --fresnel-600: #8568cf;
+  --fresnel-800: #713fb9;
+  --fresnel-900: #55428f;
+  --fresnel-975: #351a55;
+
+  --font-sans: 'Google Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Google Sans Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --bg-page: #ffffff;
+  --bg-subtle: #f6f4fc;
+  --bg-card: #ffffff;
+  --bg-pill: #eae5f9;
+  --bg-code: #231138;
+  --text-main: #351a55;
+  --text-body: #55428f;
+  --text-muted: #8b78d0;
+  --text-code: #f5f3fc;
+  --accent-primary: #713fb9;
+  --border-hairline: #ebe6f7;
+  --border-card: #d5d0f3;
+
+  --cat-perf: #713fb9;
+  --cat-a11y: #0d9488;
+  --cat-bp: #2563eb;
+  --cat-seo: #d97706;
+  --cat-sec: #db2777;
+
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  background: var(--bg-page);
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: clip;
+}
+
+.fresnel-root[data-theme='dark'] {
+  --bg-page: #190b28;
+  --bg-subtle: #231138;
+  --bg-card: #2b1544;
+  --bg-pill: #351a55;
+  --text-main: #f5f3fc;
+  --text-body: #d5d0f3;
+  --text-muted: #a993d8;
+  --accent-primary: #8a88ff;
+  --border-hairline: #3b205c;
+  --border-card: #4b3480;
+}
+
+.fresnel-root *,
+.fresnel-root *::before,
+.fresnel-root *::after {
+  box-sizing: border-box;
+}
+
+.fresnel-root .fr-topbar {
+  min-height: 72px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 12px clamp(16px, 6vw, 80px);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-card);
+}
+
+.fresnel-root .fr-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-main);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.fresnel-root .fr-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-pill);
+  color: var(--accent-primary);
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.fresnel-root .fr-nav-link {
+  color: var(--text-body);
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-nav-link:hover,
+.fresnel-root .fr-nav-link[data-status='active'] {
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-nav-link[data-status='active'] {
+  font-weight: 700;
+}
+
+.fresnel-root .fr-main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 48px) clamp(16px, 4vw, 24px) 80px;
+}
+
+.fresnel-root .fr-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-eyebrow-line {
+  width: 22px;
+  height: 2px;
+  flex-shrink: 0;
+  background: var(--accent-primary);
+}
+
+.fresnel-root .fr-title {
+  margin: 18px 0 14px;
+  font-size: clamp(32px, 5vw, 54px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  overflow-wrap: break-word;
+}
+
+.fresnel-root .fr-title span {
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-intro,
+.fresnel-root .fr-muted {
+  color: var(--text-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.fresnel-root .fr-auth-layout {
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.fresnel-root .fr-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 18px;
+  padding: clamp(20px, 4vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fresnel-root .fr-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.fresnel-root .fr-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.fresnel-root .fr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.fresnel-root .fr-btn-primary,
+.fresnel-root .fr-btn-secondary,
+.fresnel-root .fr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-btn-primary {
+  background: var(--accent-primary);
+  color: #ffffff;
+}
+
+.fresnel-root .fr-btn-secondary,
+.fresnel-root .fr-icon-btn {
+  background: var(--bg-pill);
+  color: var(--text-main);
+  border-color: var(--border-card);
+}
+
+.fresnel-root .fr-error {
+  color: var(--cat-sec);
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.fresnel-root .fr-dashboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.fresnel-root .fr-code-block {
+  background: var(--bg-code);
+  color: var(--text-code);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+.fresnel-root .fr-widget-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.fresnel-root .fr-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-widget-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .fr-widget-close {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-pill);
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-widget-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

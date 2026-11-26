@@ -1,8 +1,10 @@
-import firebaseRulesPlugin from '@firebase/eslint-plugin-security-rules';
-
 export default [
   {
-    ignores: ['dist/**/*', 'node_modules/**/*']
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'legacy-angular/**',
+      'src/routeTree.gen.ts',
+    ],
   },
-  firebaseRulesPlugin.configs['flat/recommended']
 ];

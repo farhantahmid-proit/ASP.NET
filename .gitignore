@@ -1,12 +1,11 @@
 node_modules/
 dist/
-.angular/
 .aistudio/
 .env
 .env.*
 !.env.example
 .dev.env.json
-DRAFT_firestore.rules
+.fresnel-data/
 *.log
 *.zip
 .DS_Store
