@@ -39,6 +39,6 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.{js,mjs,ts}'],
-    exclude: ['legacy-angular/**', 'spec/**', 'tests/**', 'dist/**', 'node_modules/**'],
+    exclude: ['spec/**', 'tests/**', 'dist/**', 'node_modules/**'],
   },
 })

@@ -1,6 +1,12 @@
-import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { useEffect, useMemo, useState } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
+import { FresnelCommandSearchModal } from '@/components/ui/FresnelCommandSearchModal'
+import { PwaInstallBanner, PwaInstallButton } from '@/components/ui/PwaInstallBanner'
+import { SavedAuditsDrawer } from '@/components/history/SavedAuditsDrawer'
 import { readEmbedContext } from '@/embed/protocol'
+import { useLocalAuditStorage } from '@/hooks/useLocalAuditStorage'
+import type { FresnelSearchItem } from '@/lib/fuzzy-search'
 import { useAuth } from '@/providers/auth-provider'
 import { useTheme } from '@/providers/theme-provider'
 
@@ -14,6 +20,41 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 const EMBEDDED = readEmbedContext().embedded
+
+const QUICK_SEARCH_ROUTES: FresnelSearchItem[] = [
+  {
+    id: 'route-workbench',
+    kind: 'route',
+    title: 'Workbench Repository Intake',
+    subtitle: 'Run static AST code & Lighthouse remediation audit',
+    keywords: ['home', 'demo', 'repo', 'ast'],
+    to: '/',
+  },
+  {
+    id: 'route-live',
+    kind: 'route',
+    title: 'Live URL & axe-core Audit Suite',
+    subtitle: 'PageSpeed Insights, Core Web Vitals, Business URL 10-tool Audit',
+    keywords: ['live', 'pagespeed', 'axe', 'web-vitals', 'business'],
+    to: '/audit/live',
+  },
+  {
+    id: 'route-compare',
+    kind: 'route',
+    title: 'Compare Audits & Global Trends',
+    subtitle: 'Cross-repo trajectory, score trends, and run-to-run diff',
+    keywords: ['compare', 'trends', 'diff', 'history', 'global'],
+    to: '/audit/compare',
+  },
+  {
+    id: 'route-dashboard',
+    kind: 'route',
+    title: 'Workspace, AST Scanner & SSH Guide',
+    subtitle: 'Web Worker Acorn AST scanner, embed keys, saved history',
+    keywords: ['dashboard', 'workspace', 'worker', 'ssh', 'git'],
+    to: '/dashboard',
+  },
+]
 
 function FresnelBrandMark() {
   return (
@@ -53,6 +94,25 @@ function NotFoundPage() {
 function RootLayout() {
   const { theme, toggleTheme } = useTheme()
   const { session } = useAuth()
+  const navigate = useNavigate()
+  const { localAudits } = useLocalAuditStorage()
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  useEffect(() => {
+    if (EMBEDDED) return undefined
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setIsSearchOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const quickRoutes = useMemo(() => QUICK_SEARCH_ROUTES, [])
 
   if (EMBEDDED) {
     return (
@@ -72,9 +132,41 @@ function RootLayout() {
         </Link>
 
         <nav className="fr-nav" aria-label="Primary navigation">
-          <Link to="/" className="fr-nav-link">Workbench</Link>
-          <Link to="/dashboard" className="fr-nav-link">Workspace</Link>
-          {!session && <Link to="/sign-in" className="fr-nav-link">Sign in</Link>}
+          <Link to="/" className="fr-nav-link">
+            Workbench
+          </Link>
+          <Link to="/audit/live" className="fr-nav-link">
+            Live Audit
+          </Link>
+          <Link to="/audit/compare" className="fr-nav-link">
+            Compare
+          </Link>
+          <Link to="/dashboard" className="fr-nav-link">
+            Workspace
+          </Link>
+          <button
+            type="button"
+            id="fresnel-topbar-search-btn"
+            className="fr-icon-btn"
+            onClick={() => setIsSearchOpen(true)}
+            aria-label="Open command search (Ctrl+K)"
+          >
+            Search (Ctrl+K)
+          </button>
+          <button
+            type="button"
+            id="fresnel-topbar-drawer-btn"
+            className="fr-icon-btn"
+            onClick={() => setIsDrawerOpen(true)}
+          >
+            Saved ({localAudits.length})
+          </button>
+          <PwaInstallButton />
+          {!session && (
+            <Link to="/sign-in" className="fr-nav-link">
+              Sign in
+            </Link>
+          )}
           <button
             type="button"
             className="fr-icon-btn"
@@ -87,8 +179,31 @@ function RootLayout() {
       </header>
 
       <main className="fr-main">
+        <PwaInstallBanner onOpenSavedAudits={() => setIsDrawerOpen(true)} />
         <Outlet />
       </main>
+
+      <FresnelCommandSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        savedAudits={localAudits}
+        quickRoutes={quickRoutes}
+        onSelectItem={(item) => {
+          if (item.auditId) {
+            void navigate({ to: '/audit/$auditId', params: { auditId: item.auditId } })
+          } else if (item.to) {
+            void navigate({ to: item.to })
+          }
+        }}
+      />
+
+      <SavedAuditsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onOpenSavedAudit={(rec) => {
+          void navigate({ to: '/audit/$auditId', params: { auditId: rec.auditId } })
+        }}
+      />
     </div>
   )
 }

@@ -14,6 +14,8 @@ import { CommitDiffViewer } from '@/components/audit/CommitDiffViewer'
 import { ExecutiveSummaryCard } from '@/components/audit/ExecutiveSummaryCard'
 import { ImpactRadarChart } from '@/components/audit/ImpactRadarChart'
 import { RepoContextBar } from '@/components/audit/RepoContextBar'
+import { GitHubSshGuide } from '@/components/git/GitHubSshGuide'
+import { GitPushFailureModal } from '@/components/git/GitPushFailureModal'
 import { RadialScoreGauge } from '@/components/ui/RadialScoreGauge'
 import { useAuditStream } from '@/hooks/useAuditStream'
 import { useLocalAuditStorage } from '@/hooks/useLocalAuditStorage'
@@ -104,6 +106,7 @@ function AuditSessionPage() {
   const [execSummary, setExecSummary] = useState<ExecutiveSummaryResult | null>(null)
   const [execError, setExecError] = useState<string | null>(null)
   const [actionNotice, setActionNotice] = useState<string | null>(null)
+  const [isPushModalOpen, setIsPushModalOpen] = useState(false)
 
   const initializedSessionIdRef = useRef<string | null>(null)
   const cachedSessionIdRef = useRef<string | null>(null)
@@ -501,6 +504,15 @@ function AuditSessionPage() {
               >
                 Prepare PR Bundle
               </button>
+
+              <button
+                type="button"
+                id="audit-troubleshoot-ssh-btn"
+                className="fr-btn-secondary"
+                onClick={() => setIsPushModalOpen(true)}
+              >
+                Troubleshoot Git/SSH
+              </button>
             </div>
 
             {actionNotice && (
@@ -643,6 +655,22 @@ function AuditSessionPage() {
               })}
             </div>
           </section>
+
+          <GitHubSshGuide
+            repoFullName={session.repo.fullName}
+            repoUrl={session.repo.url}
+            headBranch={`fresnel/${session.runPhase === 'lhr' ? 'lhr-fixes' : 'code-audit'}`}
+            defaultEmail={authSession?.administrator.email ?? ''}
+          />
+
+          <GitPushFailureModal
+            isOpen={isPushModalOpen}
+            onClose={() => setIsPushModalOpen(false)}
+            repoFullName={session.repo.fullName}
+            repoUrl={session.repo.url}
+            headBranch={`fresnel/${session.runPhase === 'lhr' ? 'lhr-fixes' : 'code-audit'}`}
+            defaultEmail={authSession?.administrator.email ?? ''}
+          />
         </>
       )}
     </div>

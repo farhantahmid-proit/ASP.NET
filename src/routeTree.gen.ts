@@ -14,6 +14,8 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuditAuditIdRouteImport } from './routes/audit/$auditId'
+import { Route as AuditCompareRouteImport } from './routes/audit/compare'
+import { Route as AuditLiveRouteImport } from './routes/audit/live'
 import { Route as WidgetPublicKeyRouteImport } from './routes/widget/$publicKey'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +43,16 @@ const AuditAuditIdRoute = AuditAuditIdRouteImport.update({
   path: '/audit/$auditId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuditCompareRoute = AuditCompareRouteImport.update({
+  id: '/audit/compare',
+  path: '/audit/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLiveRoute = AuditLiveRouteImport.update({
+  id: '/audit/live',
+  path: '/audit/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WidgetPublicKeyRoute = WidgetPublicKeyRouteImport.update({
   id: '/widget/$publicKey',
   path: '/widget/$publicKey',
@@ -53,6 +65,8 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/audit/$auditId': typeof AuditAuditIdRoute
+  '/audit/compare': typeof AuditCompareRoute
+  '/audit/live': typeof AuditLiveRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +75,8 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/audit/$auditId': typeof AuditAuditIdRoute
+  '/audit/compare': typeof AuditCompareRoute
+  '/audit/live': typeof AuditLiveRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRoutesById {
@@ -70,6 +86,8 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/audit/$auditId': typeof AuditAuditIdRoute
+  '/audit/compare': typeof AuditCompareRoute
+  '/audit/live': typeof AuditLiveRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +98,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/audit/$auditId'
+    | '/audit/compare'
+    | '/audit/live'
     | '/widget/$publicKey'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +108,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/audit/$auditId'
+    | '/audit/compare'
+    | '/audit/live'
     | '/widget/$publicKey'
   id:
     | '__root__'
@@ -96,6 +118,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/audit/$auditId'
+    | '/audit/compare'
+    | '/audit/live'
     | '/widget/$publicKey'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +129,8 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   SignInRoute: typeof SignInRoute
   AuditAuditIdRoute: typeof AuditAuditIdRoute
+  AuditCompareRoute: typeof AuditCompareRoute
+  AuditLiveRoute: typeof AuditLiveRoute
   WidgetPublicKeyRoute: typeof WidgetPublicKeyRoute
 }
 
@@ -145,6 +171,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditAuditIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/audit/compare': {
+      id: '/audit/compare'
+      path: '/audit/compare'
+      fullPath: '/audit/compare'
+      preLoaderRoute: typeof AuditCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit/live': {
+      id: '/audit/live'
+      path: '/audit/live'
+      fullPath: '/audit/live'
+      preLoaderRoute: typeof AuditLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/widget/$publicKey': {
       id: '/widget/$publicKey'
       path: '/widget/$publicKey'
@@ -161,6 +201,8 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   SignInRoute: SignInRoute,
   AuditAuditIdRoute: AuditAuditIdRoute,
+  AuditCompareRoute: AuditCompareRoute,
+  AuditLiveRoute: AuditLiveRoute,
   WidgetPublicKeyRoute: WidgetPublicKeyRoute,
 }
 export const routeTree = rootRouteImport

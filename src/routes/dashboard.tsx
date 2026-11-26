@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { AstWorkerScanner } from '@/components/audit/AstWorkerScanner'
 import { AuditOverviewPanel } from '@/components/audit/AuditOverviewPanel'
+import { GitHubSshGuide } from '@/components/git/GitHubSshGuide'
+import { SavedAuditsDrawer } from '@/components/history/SavedAuditsDrawer'
 import { useAuth } from '@/providers/auth-provider'
 import type { LocalSavedAuditRecord } from '@/types/audit'
 
@@ -12,6 +14,7 @@ function DashboardPage() {
   const navigate = useNavigate()
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState<string | null>(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const copyTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -64,16 +67,25 @@ function DashboardPage() {
                 <code>{session.workspace.slug}</code>
               </p>
             </div>
-            <button
-              type="button"
-              className="fr-btn-secondary"
-              onClick={() => {
-                signOut()
-                void navigate({ to: '/sign-in' })
-              }}
-            >
-              Sign out
-            </button>
+            <div className="fr-actions">
+              <button
+                type="button"
+                className="fr-btn-secondary"
+                onClick={() => setIsDrawerOpen(true)}
+              >
+                Open Saved Audits Drawer
+              </button>
+              <button
+                type="button"
+                className="fr-btn-secondary"
+                onClick={() => {
+                  signOut()
+                  void navigate({ to: '/sign-in' })
+                }}
+              >
+                Sign out
+              </button>
+            </div>
           </div>
 
           <article className="fr-card">
@@ -106,17 +118,27 @@ function DashboardPage() {
           <div className="fr-eyebrow">
             <span className="fr-eyebrow-line" /> LOCAL &amp; WORKSPACE DASHBOARD
           </div>
-          <h1>Saved Audits &amp; In-Browser AST Scanner</h1>
+          <h1>Saved Audits, Live Tools &amp; In-Browser AST Scanner</h1>
           <p className="fr-muted">
-            Run browser Web Worker AST scans and inspect locally persisted reports immediately, or
+            Run browser Web Worker AST scans, launch live URL audits, compare historical runs, or
             sign in to manage your workspace embed key.
           </p>
           <div className="fr-actions">
-            <Link className="fr-btn-primary" to="/sign-in">
-              Sign in →
+            <Link className="fr-btn-primary" to="/audit/live">
+              Open Live Audit Suite
             </Link>
-            <Link className="fr-btn-secondary" to="/register">
-              Create Workspace
+            <Link className="fr-btn-secondary" to="/audit/compare">
+              Compare &amp; Global Trends
+            </Link>
+            <button
+              type="button"
+              className="fr-btn-secondary"
+              onClick={() => setIsDrawerOpen(true)}
+            >
+              Open Saved Audits Drawer
+            </button>
+            <Link className="fr-btn-secondary" to="/sign-in">
+              Sign in →
             </Link>
           </div>
         </article>
@@ -128,6 +150,14 @@ function DashboardPage() {
       />
 
       <AstWorkerScanner onOpenSavedAudit={handleOpenSavedRecord} />
+
+      <GitHubSshGuide defaultEmail={session?.administrator.email ?? ''} />
+
+      <SavedAuditsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onOpenSavedAudit={handleOpenSavedRecord}
+      />
     </section>
   )
 }
