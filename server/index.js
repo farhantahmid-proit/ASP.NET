@@ -19,7 +19,8 @@ import {
 import { executeOssStaticAudit, executeOssLhrAudit } from './oss-engine/audit-orchestrator.js';
 import { detectChromiumAvailability, runLiveLighthouseAudit } from './oss-engine/lighthouse-runner.js';
 import { runPageSpeedInsightsAudit } from './oss-engine/pagespeed-runner.js';
-import { serializeSiteCrawlToCsv } from './oss-engine/siteone-runner.js';
+import { detectSiteOneBinary, serializeSiteCrawlToCsv } from './oss-engine/siteone-runner.js';
+import { parseAllowedCorsOrigins, applyApiCorsHeaders } from './cors.js';
 import {
   getSiteAuditSession,
   getSiteAuditSessionRaw,
@@ -358,6 +359,11 @@ export async function handleFresnelApiRequest(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
+  const allowedOrigins = parseAllowedCorsOrigins();
+  if (applyApiCorsHeaders(req, res, { pathname, allowedOrigins })) {
+    return true;
+  }
+
   // 0. Legacy AI proxy path permanently disabled
   if (pathname.startsWith('/api/gemini/v1beta/')) {
     sendJson(res, 410, {
@@ -365,6 +371,21 @@ export async function handleFresnelApiRequest(req, res) {
         code: 'zero_ai_mode',
         message: 'Fresnel operates in 100% Zero-AI Open-Source mode. External LLM proxies are disabled.'
       }
+    });
+    return true;
+  }
+
+  // 0a. GET /api/health (Zero-side-effect container & runtime readiness probe)
+  if (req.method === 'GET' && pathname === '/api/health') {
+    const chromeInfo = detectChromiumAvailability();
+    const siteOneInfo = detectSiteOneBinary();
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'fresnel',
+      uptimeSec: Math.floor(process.uptime()),
+      chromiumAvailable: chromeInfo.available,
+      siteOneAvailable: siteOneInfo.available,
+      nodeVersion: process.version
     });
     return true;
   }
