@@ -27,3 +27,10 @@ export function refreshWorkspaceSession(refreshToken: string): Promise<Workspace
     fallbackError: 'Your session expired. Please sign in again.',
   })
 }
+
+export function fetchWorkspaceMe(accessToken: string): Promise<WorkspaceRegistrationResponse> {
+  return apiFetch<WorkspaceRegistrationResponse>('/api/workspaces/me', {
+    accessToken,
+    fallbackError: 'Authentication required.',
+  })
+}
