@@ -19,20 +19,35 @@ import {
 import { executeOssStaticAudit, executeOssLhrAudit } from './oss-engine/audit-orchestrator.js';
 import { detectChromiumAvailability, runLiveLighthouseAudit } from './oss-engine/lighthouse-runner.js';
 import { runPageSpeedInsightsAudit } from './oss-engine/pagespeed-runner.js';
+import { detectSiteOneBinary, serializeSiteCrawlToCsv } from './oss-engine/siteone-runner.js';
+import { parseAllowedCorsOrigins, applyApiCorsHeaders } from './cors.js';
+import {
+  getSiteAuditSession,
+  getSiteAuditSessionRaw,
+  runQuickWidgetSiteAudit,
+  startSiteAuditSession
+} from './oss-engine/site-audit-orchestrator.js';
 import { fetchOssWebStandardsGrounding } from './oss-engine/standards-registry.js';
 import {
   detectGithubSshReadiness,
   diagnoseGitRemotePush
 } from './oss-engine/ssh-diagnostics.js';
 import { generateAiExecutiveSummary } from './oss-engine/executive-summary.js';
+import {
+  registerWorkspace,
+  loginWorkspace,
+  refreshWorkspaceToken,
+  getWorkspaceByAccessToken,
+  findWidgetByPublicKey
+} from './auth-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.join(__dirname, '..');
-const SRC_APP_DIR = path.join(ROOT_DIR, 'src', 'app');
+const SRC_DIR = path.join(ROOT_DIR, 'src');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 
-function resolveAngularDistDir() {
+function resolveClientDistDir() {
   const devBrowserDir = path.join(ROOT_DIR, 'dist', 'fresnel', 'browser');
   if (fs.existsSync(path.join(devBrowserDir, 'index.html'))) {
     return devBrowserDir;
@@ -44,28 +59,28 @@ function resolveAngularDistDir() {
   return devBrowserDir;
 }
 
-let angularBuildPromise = null;
+let clientBuildPromise = null;
 
 function cleanupLegacyVanillaFiles() {
   // No-op: preserve workspace files across shared instances
 }
 
-function isAngularDistFresh() {
+function isClientDistFresh() {
   try {
     // In a shared/deployed app.tar.gz container, /app/applet/browser/index.html is prebuilt
     const sharedIndex = path.join(ROOT_DIR, 'browser', 'index.html');
-    if (fs.existsSync(sharedIndex) && !fs.existsSync(SRC_APP_DIR)) {
+    if (fs.existsSync(sharedIndex) && !fs.existsSync(SRC_DIR)) {
       return true;
     }
-    const distDir = resolveAngularDistDir();
+    const distDir = resolveClientDistDir();
     const distIndex = path.join(distDir, 'index.html');
     if (!fs.existsSync(distIndex)) return false;
     const distMtime = fs.statSync(distIndex).mtimeMs;
     const trackedSourceFiles = [
-      path.join(SRC_APP_DIR, 'app.component.ts'),
-      path.join(SRC_APP_DIR, 'app.component.html'),
-      path.join(SRC_APP_DIR, 'services', 'audit.service.ts'),
-      path.join(ROOT_DIR, 'src', 'styles.scss')
+      path.join(SRC_DIR, 'main.tsx'),
+      path.join(SRC_DIR, 'router.ts'),
+      path.join(SRC_DIR, 'styles.css'),
+      path.join(ROOT_DIR, 'index.html')
     ];
     for (const srcFile of trackedSourceFiles) {
       if (fs.existsSync(srcFile) && fs.statSync(srcFile).mtimeMs > distMtime + 1000) {
@@ -78,38 +93,35 @@ function isAngularDistFresh() {
   }
 }
 
-function ensureAngularBuild() {
-  if (isAngularDistFresh()) {
+function ensureClientBuild() {
+  if (isClientDistFresh()) {
     return Promise.resolve(true);
   }
-  if (angularBuildPromise) {
-    return angularBuildPromise;
+  if (clientBuildPromise) {
+    return clientBuildPromise;
   }
   const buildScript = path.join(ROOT_DIR, 'scripts', 'build.mjs');
-  const ngBin = path.join(ROOT_DIR, 'node_modules', '.bin', 'ng');
-  if (!fs.existsSync(buildScript) && !fs.existsSync(ngBin)) {
-    return Promise.resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+  if (!fs.existsSync(buildScript)) {
+    return Promise.resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
   }
 
-  angularBuildPromise = new Promise((resolve) => {
-    const cmd = fs.existsSync(buildScript) ? process.execPath : ngBin;
-    const cmdArgs = fs.existsSync(buildScript) ? [buildScript] : ['build'];
-    const child = spawn(cmd, cmdArgs, {
+  clientBuildPromise = new Promise((resolve) => {
+    const child = spawn(process.execPath, [buildScript], {
       cwd: ROOT_DIR,
       stdio: 'ignore',
       detached: false
     });
     child.on('close', () => {
-      angularBuildPromise = null;
-      resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+      clientBuildPromise = null;
+      resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
     });
     child.on('error', () => {
-      angularBuildPromise = null;
-      resolve(fs.existsSync(path.join(resolveAngularDistDir(), 'index.html')));
+      clientBuildPromise = null;
+      resolve(fs.existsSync(path.join(resolveClientDistDir(), 'index.html')));
     });
   });
 
-  return angularBuildPromise;
+  return clientBuildPromise;
 }
 
 export function resolvePortAndHost() {
@@ -197,6 +209,12 @@ function sendJson(res, statusCode, payload) {
   res.end(body);
 }
 
+function resolveClientIp(req) {
+  const xffParts = String(req.headers?.['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const xff = xffParts.length >= 2 ? xffParts[xffParts.length - 2] : (xffParts[0] || '');
+  return xff || req.socket?.remoteAddress || 'unknown';
+}
+
 function resolveAuditClientId(req, url) {
   const hdr = req.headers?.['x-client-id'];
   if (typeof hdr === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(hdr.trim())) {
@@ -206,10 +224,7 @@ function resolveAuditClientId(req, url) {
   if (typeof cidParam === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(cidParam.trim())) {
     return `cid:${cidParam.trim()}`;
   }
-  const xffParts = String(req.headers?.['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const xff = xffParts.length >= 2 ? xffParts[xffParts.length - 2] : (xffParts[0] || '');
-  const ip = xff || req.socket?.remoteAddress || 'unknown';
-  return `ip:${ip}`;
+  return `ip:${resolveClientIp(req)}`;
 }
 
 function readJsonBody(req) {
@@ -344,6 +359,11 @@ export async function handleFresnelApiRequest(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
+  const allowedOrigins = parseAllowedCorsOrigins();
+  if (applyApiCorsHeaders(req, res, { pathname, allowedOrigins })) {
+    return true;
+  }
+
   // 0. Legacy AI proxy path permanently disabled
   if (pathname.startsWith('/api/gemini/v1beta/')) {
     sendJson(res, 410, {
@@ -351,6 +371,21 @@ export async function handleFresnelApiRequest(req, res) {
         code: 'zero_ai_mode',
         message: 'Fresnel operates in 100% Zero-AI Open-Source mode. External LLM proxies are disabled.'
       }
+    });
+    return true;
+  }
+
+  // 0a. GET /api/health (Zero-side-effect container & runtime readiness probe)
+  if (req.method === 'GET' && pathname === '/api/health') {
+    const chromeInfo = detectChromiumAvailability();
+    const siteOneInfo = detectSiteOneBinary();
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'fresnel',
+      uptimeSec: Math.floor(process.uptime()),
+      chromiumAvailable: chromeInfo.available,
+      siteOneAvailable: siteOneInfo.available,
+      nodeVersion: process.version
     });
     return true;
   }
@@ -378,6 +413,109 @@ export async function handleFresnelApiRequest(req, res) {
       lore: FRESNEL_IDENTITY_LORE,
       sampleLhrJson: SAMPLE_LIGHTHOUSE_LHR_JSON
     });
+    return true;
+  }
+
+  // 1-auth. Workspace JWT Authentication & Embed Widget Metadata
+  if (req.method === 'POST' && pathname === '/api/workspaces/register') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = registerWorkspace(body);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/workspaces/auth/login') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = loginWorkspace(body);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/workspaces/auth/refresh') {
+    try {
+      const body = await readJsonBody(req);
+      const outcome = refreshWorkspaceToken(body?.refresh_token);
+      if (outcome.detail) {
+        sendJson(res, outcome.status, { detail: outcome.detail, error: outcome.detail });
+      } else {
+        sendJson(res, outcome.status, outcome.data);
+      }
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+    }
+    return true;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/workspaces/me') {
+    const authHdr = req.headers?.authorization || '';
+    const token = authHdr.startsWith('Bearer ') ? authHdr.slice(7).trim() : '';
+    const session = getWorkspaceByAccessToken(token);
+    if (!session) {
+      sendJson(res, 401, { detail: 'Authentication required.', error: 'Authentication required.' });
+      return true;
+    }
+    sendJson(res, 200, session);
+    return true;
+  }
+
+  const widgetInfoMatch = pathname.match(/^\/api\/widget\/([^/]+)\/meta$/);
+  if (req.method === 'GET' && widgetInfoMatch) {
+    const found = findWidgetByPublicKey(decodeURIComponent(widgetInfoMatch[1]));
+    if (!found) {
+      sendJson(res, 404, { detail: 'Widget key not found.', error: 'Widget key not found.' });
+      return true;
+    }
+    sendJson(res, 200, found);
+    return true;
+  }
+
+  const widgetAuditMatch = pathname.match(/^\/api\/widget\/([^/]+)\/audit$/);
+  if (req.method === 'POST' && widgetAuditMatch) {
+    const publicKey = decodeURIComponent(widgetAuditMatch[1]);
+    const found = findWidgetByPublicKey(publicKey);
+    if (!found) {
+      sendJson(res, 404, { detail: 'Widget key not found.', error: 'Widget key not found.' });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+      return true;
+    }
+    try {
+      const result = await runQuickWidgetSiteAudit({
+        targetUrl: String(body?.targetUrl || ''),
+        publicKey,
+        workspaceName: found.workspace.name,
+        clientIp: resolveClientIp(req)
+      });
+      sendJson(res, 200, result);
+    } catch (err) {
+      const status = Number(err?.statusCode) || 400;
+      const message = err?.message || 'Unable to audit the target URL.';
+      if (status === 429 && err?.retryAfterSec) {
+        res.setHeader('Retry-After', String(err.retryAfterSec));
+      }
+      sendJson(res, status, { detail: message, error: message });
+    }
     return true;
   }
 
@@ -822,6 +960,116 @@ export async function handleFresnelApiRequest(req, res) {
       source: isDemoRepo ? 'sandbox-live' : 'github-fallback',
       issues: fallbackIssues
     });
+    return true;
+  }
+
+  // 1d. All-in-One Site Audit Endpoints (/api/audit/site/*)
+  if (req.method === 'POST' && pathname === '/api/audit/site/start') {
+    const clientId = resolveAuditClientId(req, url);
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+      return true;
+    }
+    try {
+      const sessionState = await startSiteAuditSession({
+        targetUrl: String(body?.targetUrl || ''),
+        clientId,
+        maxUrls: body?.maxUrls,
+        maxDepth: body?.maxDepth,
+        includeCrawl: body?.includeCrawl !== false,
+        includeThreatIntel: body?.includeThreatIntel !== false,
+        source: body?.source || 'web'
+      });
+      sendJson(res, 201, sessionState);
+    } catch (err) {
+      const message = err?.message || 'Enter a valid public http:// or https:// URL.';
+      sendJson(res, 400, { detail: message, error: message });
+    }
+    return true;
+  }
+
+  const siteStatusMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/status$/);
+  if (req.method === 'GET' && siteStatusMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const sessionState = getSiteAuditSession(siteStatusMatch[1], clientId);
+    if (!sessionState) {
+      sendJson(res, 404, { detail: 'Site audit session not found.', error: 'Site audit session not found.' });
+      return true;
+    }
+    sendJson(res, 200, sessionState);
+    return true;
+  }
+
+  const siteStreamMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/stream$/);
+  if (req.method === 'GET' && siteStreamMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const session = getSiteAuditSessionRaw(siteStreamMatch[1], clientId);
+    if (!session) {
+      sendJson(res, 404, { detail: 'Site audit session not found.', error: 'Site audit session not found.' });
+      return true;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+
+    const initial = getSiteAuditSession(session.id, clientId);
+    res.write(`event: state\ndata: ${JSON.stringify(initial)}\n\n`);
+
+    if (initial.status === 'completed' || initial.status === 'failed') {
+      res.write(`event: completed\ndata: ${JSON.stringify({ sessionId: session.id, session: initial })}\n\n`);
+      res.end();
+      return true;
+    }
+
+    if (!session.sseListeners) session.sseListeners = new Set();
+    session.sseListeners.add(res);
+
+    const keepalive = setInterval(() => {
+      try {
+        res.write(': keepalive\n\n');
+      } catch {
+        clearInterval(keepalive);
+        session.sseListeners.delete(res);
+      }
+    }, 15000);
+
+    req.on('close', () => {
+      clearInterval(keepalive);
+      session.sseListeners.delete(res);
+    });
+    return true;
+  }
+
+  const siteCsvMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/export\.csv$/);
+  if (req.method === 'GET' && siteCsvMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const session = getSiteAuditSessionRaw(siteCsvMatch[1], clientId);
+    if (!session) {
+      res.writeHead(404);
+      res.end('Site audit session not found');
+      return true;
+    }
+    let hostSlug = 'site';
+    try {
+      hostSlug = new URL(session.targetUrl).hostname.replace(/[^a-zA-Z0-9.-]/g, '-');
+    } catch {
+      // Keep default slug
+    }
+    const csvContent = serializeSiteCrawlToCsv(session.siteCrawl);
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': `attachment; filename="fresnel-site-crawl-${hostSlug}.csv"`,
+      'Cache-Control': 'private, no-store'
+    });
+    res.end(csvContent);
     return true;
   }
 
@@ -1341,9 +1589,9 @@ export async function handleFresnelRequest(req, res) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
-    await ensureAngularBuild();
+    await ensureClientBuild();
 
-    const staticRoot = resolveAngularDistDir();
+    const staticRoot = resolveClientDistDir();
     let decodedPathname;
     try {
       decodedPathname = decodeURIComponent(pathname);
@@ -1368,6 +1616,11 @@ export async function handleFresnelRequest(req, res) {
       if (safePath === '/sw.js') {
         headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
         headers['Service-Worker-Allowed'] = '/';
+      }
+      if (safePath === '/widget.js') {
+        headers['Access-Control-Allow-Origin'] = '*';
+        headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
+        headers['Cache-Control'] = 'public, max-age=300';
       }
       if (ext === '.svg') {
         headers['X-Content-Type-Options'] = 'nosniff';
@@ -1400,7 +1653,7 @@ export async function handleFresnelRequest(req, res) {
       return;
     }
 
-    // Fallback to Angular index.html for extensionless SPA routes
+    // Fallback to Vite SPA index.html for extensionless SPA routes
     const indexFallback = path.join(staticRoot, 'index.html');
     if (fs.existsSync(indexFallback)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -1417,7 +1670,7 @@ export async function handleFresnelRequest(req, res) {
 
 export function startFresnelServer(port = PORT, host = HOST) {
   cleanupLegacyVanillaFiles();
-  void ensureAngularBuild();
+  void ensureClientBuild();
   const server = http.createServer(handleFresnelRequest);
   server.listen(port, host, () => {
     console.log(`[Fresnel] Zero-AI Open-Source Audit Server listening at http://${host}:${port}`);

@@ -1,0 +1,1537 @@
+/* Scoped Fresnel Design System — Preserves Lavender / Violet / Plum brand tokens */
+body:has(.fresnel-root) {
+  margin: 0;
+  background: #ffffff;
+}
+
+body:has(.fresnel-root[data-theme='dark']) {
+  background: #190b28;
+}
+
+.fresnel-root {
+  --fresnel-100: #d5d0f3;
+  --fresnel-200: #c8b9e7;
+  --fresnel-500: #8b78d0;
+  --fresnel-600: #8568cf;
+  --fresnel-800: #713fb9;
+  --fresnel-900: #55428f;
+  --fresnel-975: #351a55;
+
+  --font-sans: 'Google Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Google Sans Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --bg-page: #ffffff;
+  --bg-subtle: #f6f4fc;
+  --bg-card: #ffffff;
+  --bg-pill: #eae5f9;
+  --bg-code: #231138;
+  --text-main: #351a55;
+  --text-body: #55428f;
+  --text-muted: #8b78d0;
+  --text-code: #f5f3fc;
+  --accent-primary: #713fb9;
+  --border-hairline: #ebe6f7;
+  --border-card: #d5d0f3;
+
+  --cat-perf: #713fb9;
+  --cat-a11y: #0d9488;
+  --cat-bp: #2563eb;
+  --cat-seo: #d97706;
+  --cat-sec: #db2777;
+
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  background: var(--bg-page);
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: clip;
+}
+
+.fresnel-root[data-theme='dark'] {
+  --bg-page: #190b28;
+  --bg-subtle: #231138;
+  --bg-card: #2b1544;
+  --bg-pill: #351a55;
+  --text-main: #f5f3fc;
+  --text-body: #d5d0f3;
+  --text-muted: #a993d8;
+  --accent-primary: #8a88ff;
+  --border-hairline: #3b205c;
+  --border-card: #4b3480;
+}
+
+.fresnel-root *,
+.fresnel-root *::before,
+.fresnel-root *::after {
+  box-sizing: border-box;
+}
+
+.fresnel-root .fr-topbar {
+  min-height: 72px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 12px clamp(16px, 6vw, 80px);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-card);
+}
+
+.fresnel-root .fr-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-main);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.fresnel-root .fr-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-pill);
+  color: var(--accent-primary);
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.fresnel-root .fr-nav-link {
+  color: var(--text-body);
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-nav-link:hover,
+.fresnel-root .fr-nav-link[data-status='active'] {
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-nav-link[data-status='active'] {
+  font-weight: 700;
+}
+
+.fresnel-root .fr-main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 48px) clamp(16px, 4vw, 24px) 80px;
+}
+
+.fresnel-root .fr-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-eyebrow-line {
+  width: 22px;
+  height: 2px;
+  flex-shrink: 0;
+  background: var(--accent-primary);
+}
+
+.fresnel-root .fr-title {
+  margin: 18px 0 14px;
+  font-size: clamp(32px, 5vw, 54px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  overflow-wrap: break-word;
+}
+
+.fresnel-root .fr-title span {
+  color: var(--accent-primary);
+}
+
+.fresnel-root .fr-intro,
+.fresnel-root .fr-muted {
+  color: var(--text-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.fresnel-root .fr-auth-layout {
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.fresnel-root .fr-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 18px;
+  padding: clamp(20px, 4vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fresnel-root .fr-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.fresnel-root .fr-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.fresnel-root .fr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.fresnel-root .fr-btn-primary,
+.fresnel-root .fr-btn-secondary,
+.fresnel-root .fr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-btn-primary {
+  background: var(--accent-primary);
+  color: #ffffff;
+}
+
+.fresnel-root .fr-btn-secondary,
+.fresnel-root .fr-icon-btn {
+  background: var(--bg-pill);
+  color: var(--text-main);
+  border-color: var(--border-card);
+}
+
+.fresnel-root .fr-error {
+  color: var(--cat-sec);
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.fresnel-root .fr-dashboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.fresnel-root .fr-code-block {
+  background: var(--bg-code);
+  color: var(--text-code);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+.fresnel-root .fr-widget-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.fresnel-root .fr-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-widget-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .fr-widget-close {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-pill);
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-widget-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+
+/* =========================================================================
+   PR 3 — Core Audit Workbench, Recharts Radar, Side-by-Side Diff & AST Scanner
+   ========================================================================= */
+.fresnel-root .fr-main {
+  max-width: 1180px;
+}
+
+.fresnel-root .fr-workbench-home,
+.fresnel-root .fr-audit-session,
+.fresnel-root .fr-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fresnel-root .fr-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.fresnel-root .fr-section-title {
+  margin: 4px 0;
+  font-size: clamp(18px, 2.5vw, 22px);
+  color: var(--text-main);
+}
+
+.fresnel-root .fr-subsection-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--text-main);
+}
+
+.fresnel-root .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* FresnelLogo + Lore Popover */
+.fresnel-root .fresnel-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.fresnel-root .brand-hover-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.fresnel-root .logo-showcase {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-pill);
+  color: var(--accent-primary);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.fresnel-root .fresnel-hero-logo {
+  width: 30px;
+  height: 30px;
+}
+
+.fresnel-root .brand-display {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-body);
+}
+
+.fresnel-root .fr-lore-trigger {
+  border: 1px solid var(--border-card);
+  background: var(--bg-pill);
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-lore-popover {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-subtle);
+  max-width: 640px;
+}
+
+.fresnel-root .fr-lore-popover__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.fresnel-root .fr-lore-popover__quote {
+  margin: 0 0 6px;
+  font-style: italic;
+  color: var(--text-main);
+}
+
+/* Workbench Intake Form */
+.fresnel-root .fr-intake-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fresnel-root .fr-intake-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.fresnel-root .fr-field,
+.fresnel-root .fr-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fresnel-root .fr-category-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fresnel-root .fr-category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-category-pill.is-selected {
+  border-color: var(--accent-primary);
+  background: var(--bg-pill);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.fresnel-root .fr-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-body);
+  cursor: pointer;
+}
+
+/* Audit Header */
+.fresnel-root .fr-audit-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fresnel-root .fr-audit-title {
+  margin: 6px 0 4px;
+  font-size: clamp(24px, 3.5vw, 34px);
+  overflow-wrap: anywhere;
+}
+
+/* Repo Context Bar */
+.fresnel-root .repo-context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+}
+
+.fresnel-root .repo-context-bar__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.fresnel-root .repo-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.fresnel-root .repo-stat-chip__value {
+  font-weight: 700;
+}
+
+.fresnel-root .repo-stat-chip__label,
+.fresnel-root .repo-stat-chip__relative,
+.fresnel-root .repo-context-bar__sep {
+  color: var(--text-muted);
+}
+
+.fresnel-root .repo-lang-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-primary);
+}
+
+.fresnel-root .repo-stat-refresh-btn {
+  border: 1px solid var(--border-card);
+  background: var(--bg-pill);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Radial Score Gauges */
+.fresnel-root .fr-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 16px;
+}
+
+.fresnel-root .fr-radial-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-radial-gauge__ring {
+  position: relative;
+}
+
+.fresnel-root .fr-radial-gauge__svg {
+  transform: rotate(-90deg);
+}
+
+.fresnel-root .fr-radial-gauge__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fresnel-root .fr-radial-gauge__score {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fresnel-root .fr-radial-gauge__denom {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.fresnel-root .fr-radial-gauge__meta {
+  text-align: center;
+}
+
+.fresnel-root .fr-radial-gauge__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fresnel-root .fr-radial-gauge__delta,
+.fresnel-root .fr-radial-gauge__sublabel {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--text-body);
+}
+
+/* Executive Summary Card */
+.fresnel-root .ai-exec-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 18px;
+  padding: clamp(20px, 4vw, 26px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fresnel-root .ai-exec-summary-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fresnel-root .ai-exec-summary-card__heading-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .ai-exec-summary-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  background: var(--bg-pill);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.fresnel-root .ai-exec-summary-card__model {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.fresnel-root .ai-exec-summary-card__headline {
+  margin: 0;
+  font-size: 18px;
+}
+
+.fresnel-root .ai-exec-summary-card__body {
+  margin: 0;
+  color: var(--text-body);
+  line-height: 1.55;
+}
+
+.fresnel-root .ai-exec-summary-card__highlights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.fresnel-root .ai-exec-improvement-pill {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .ai-exec-improvement-pill__cat {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  text-transform: uppercase;
+}
+
+.fresnel-root .ai-exec-improvement-pill__title {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.fresnel-root .ai-exec-improvement-pill__impact {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-body);
+}
+
+.fresnel-root .ai-exec-summary-card__next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  font-size: 13px;
+}
+
+.fresnel-root .ai-exec-summary-card__next-label {
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.fresnel-root .ai-exec-summary-card__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Segmented Controls & Radar / Comparison */
+.fresnel-root .fr-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-segmented__btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-segmented__btn.is-active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.fresnel-root .fr-radar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+
+.fresnel-root .fr-radar-chart-box {
+  width: 100%;
+  min-width: 0;
+}
+
+.fresnel-root .fr-radar-axes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fresnel-root .fr-axis-row {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-axis-row__top,
+.fresnel-root .fr-axis-row__scores {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.fresnel-root .fr-axis-row__label {
+  font-weight: 600;
+}
+
+.fresnel-root .fr-comparison-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.fresnel-root .fr-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.fresnel-root .fr-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fresnel-root .fr-comparison-table th,
+.fresnel-root .fr-comparison-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+/* Telemetry, Progress & Dashboard KPI Strip */
+.fresnel-root .fr-progress-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fresnel-root .fr-progress-panel__top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fresnel-root .fr-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-pill);
+  overflow: hidden;
+}
+
+.fresnel-root .fr-progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.25s ease;
+}
+
+.fresnel-root .fr-telemetry-steps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fresnel-root .fr-telemetry-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.fresnel-root .fr-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.fresnel-root .fr-kpi-cell {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fresnel-root .fr-kpi-cell__value {
+  font-size: 22px;
+}
+
+.fresnel-root .fr-saved-list,
+.fresnel-root .fr-commit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fresnel-root .fr-saved-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-result-banner,
+.fresnel-root .fr-bundle-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-card);
+}
+
+.fresnel-root .fr-result-banner__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+/* Commit Cards & Side-by-Side Diff Viewer */
+.fresnel-root .fr-commit-card {
+  border: 1px solid var(--border-hairline);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fresnel-root .fr-commit-card.is-selected {
+  border-color: var(--accent-primary);
+}
+
+.fresnel-root .fr-commit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fresnel-root .fr-commit-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-commit-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.fresnel-root .fr-commit-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.fresnel-root .sbs-diff-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fresnel-root .sbs-file-block {
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.fresnel-root .sbs-file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-pill);
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: 12px;
+}
+
+.fresnel-root .sbs-file-header__left,
+.fresnel-root .sbs-file-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .sbs-stat--add {
+  color: #0d9488;
+  font-weight: 700;
+}
+
+.fresnel-root .sbs-stat--del {
+  color: #db2777;
+  font-weight: 700;
+}
+
+.fresnel-root .sbs-column-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .sbs-column-label {
+  padding: 4px 10px;
+}
+
+.fresnel-root .sbs-grid-scroll {
+  overflow-x: auto;
+}
+
+.fresnel-root .sbs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fresnel-root .sbs-hunk-cell {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .sbs-ln {
+  width: 38px;
+  padding: 2px 6px;
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.fresnel-root .sbs-sign {
+  width: 18px;
+  padding: 2px 4px;
+  text-align: center;
+  user-select: none;
+}
+
+.fresnel-root .sbs-code {
+  padding: 2px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fresnel-root .sbs-line--del,
+.fresnel-root .sbs-cell--del {
+  background: rgba(219, 39, 119, 0.12);
+}
+
+.fresnel-root .sbs-line--add,
+.fresnel-root .sbs-cell--add {
+  background: rgba(13, 148, 136, 0.12);
+}
+
+.fresnel-root .sbs-mark--del {
+  background: rgba(219, 39, 119, 0.28);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.fresnel-root .sbs-mark--add {
+  background: rgba(13, 148, 136, 0.28);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.fresnel-root .sbs-empty-state {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .fresnel-root .fr-intake-grid,
+  .fresnel-root .fr-radar-layout,
+  .fresnel-root .fr-comparison-selectors {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =========================================================================
+   PR 4 — Drawer, Command Search, Modals, Live Audit & SSH Troubleshooter
+   ========================================================================= */
+.fresnel-root .fr-modal-backdrop,
+.fresnel-root .fr-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(25, 11, 40, 0.56);
+  display: flex;
+  padding: 16px;
+}
+
+.fresnel-root .fr-modal-backdrop {
+  align-items: center;
+  justify-content: center;
+}
+
+.fresnel-root .fr-drawer-backdrop {
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.fresnel-root .fr-modal-card,
+.fresnel-root .fr-cmd-modal {
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-card);
+  border-radius: 18px;
+  padding: clamp(18px, 3vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fresnel-root .fr-cmd-modal {
+  max-width: 600px;
+}
+
+.fresnel-root .fr-cmd-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fresnel-root .fr-cmd-modal__title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.fresnel-root .fr-cmd-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.fresnel-root .fr-cmd-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fresnel-root .fr-cmd-item.is-active,
+.fresnel-root .fr-cmd-item:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-pill);
+}
+
+.fresnel-root .fr-cmd-item__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fresnel-root .fr-cmd-item__snippet,
+.fresnel-root .fr-cmd-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.fresnel-root .fr-drawer-panel {
+  width: min(640px, 100%);
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border-left: 1px solid var(--border-card);
+  padding: clamp(18px, 3vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fresnel-root .fr-live-panel,
+.fresnel-root .fr-steps-list,
+.fresnel-root .fr-violation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fresnel-root .fr-violation-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-card);
+  font-size: 13px;
+}
+
+.fresnel-root .fr-pwa-banner {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-pill);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+/* PR 5 — All-in-One Site Audit & Live Embed Widget */
+.fresnel-root .fr-site-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fresnel-root .fr-site-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.fresnel-root .fr-site-span-2 {
+  grid-column: 1 / -1;
+}
+
+.fresnel-root .fr-site-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 210px) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 720px) {
+  .fresnel-root .fr-site-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fresnel-root .fr-site-progress {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-gauges-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  gap: 16px;
+}
+
+.fresnel-root .fr-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fresnel-root .fr-card-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.fresnel-root .fr-kv-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fresnel-root .fr-kv-list > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: 13px;
+}
+
+.fresnel-root .fr-kv-list dt {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.fresnel-root .fr-kv-list dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.fresnel-root .fr-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.fresnel-root .fr-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .fr-chip {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-body);
+}
+
+.fresnel-root .fr-pill-ok,
+.fresnel-root .fr-pill-warn,
+.fresnel-root .fr-pill-bad {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.fresnel-root .fr-pill-ok {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.fresnel-root[data-theme='dark'] .fr-pill-ok {
+  color: #6ee7b7;
+}
+
+.fresnel-root .fr-pill-warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+}
+
+.fresnel-root[data-theme='dark'] .fr-pill-warn {
+  color: #fcd34d;
+}
+
+.fresnel-root .fr-pill-bad {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.fresnel-root[data-theme='dark'] .fr-pill-bad {
+  color: #fca5a5;
+}
+
+.fresnel-root .fr-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.fresnel-root .fr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fresnel-root .fr-table th,
+.fresnel-root .fr-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+  vertical-align: top;
+}
+
+.fresnel-root .fr-cell-wrap {
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.fresnel-root .fr-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.fresnel-root .fr-filter-bar .fr-input {
+  flex: 1 1 200px;
+}
+
+.fresnel-root .fr-select-compact {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.fresnel-root .fr-check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fresnel-root .fr-mini-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.fresnel-root .fr-subblock {
+  margin-top: 14px;
+}
+
+.fresnel-root .fr-subblock h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.fresnel-root .fr-textarea {
+  width: 100%;
+  min-height: 108px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  resize: vertical;
+}
+
+.fresnel-root .fr-patch-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.fresnel-root .fr-wp-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fresnel-root .fr-wp-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-subtle);
+  cursor: pointer;
+}
+
+.fresnel-root .fr-wp-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fresnel-root .fr-widget-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fresnel-root .fr-widget-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fresnel-root .fr-widget-input-row .fr-input {
+  flex: 1 1 auto;
+}
+
+.fresnel-root .fr-widget-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.fresnel-root .fr-widget-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 10px;
+  justify-items: center;
+}
+
+.fresnel-root .fr-widget-findings h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.fresnel-root .fr-widget-finding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.fresnel-root .fr-widget-footer-link {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}

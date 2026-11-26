@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.fresnel-data
+uat-evidence
+*.log
+*.zip
+.DS_Store

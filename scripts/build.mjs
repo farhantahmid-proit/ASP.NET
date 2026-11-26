@@ -19,20 +19,32 @@ function copyDirRecursive(srcDir, destDir) {
     const destPath = path.join(destDir, entry.name);
     if (entry.isDirectory()) {
       copyDirRecursive(srcPath, destPath);
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() && !/\.(test|spec)\.[^.]+$/i.test(entry.name)) {
       fs.copyFileSync(srcPath, destPath);
     }
   }
 }
 
-async function buildWorkboxServiceWorker() {
-  if (!fs.existsSync(DIST_BROWSER_DIR)) {
-    return;
+function runVite(args) {
+  const viteEntry = path.join(ROOT_DIR, 'node_modules', 'vite', 'bin', 'vite.js');
+  const res = fs.existsSync(viteEntry)
+    ? spawnSync(process.execPath, [viteEntry, ...args], { cwd: ROOT_DIR, stdio: 'inherit' })
+    : spawnSync(
+        path.join(ROOT_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite'),
+        args,
+        { cwd: ROOT_DIR, stdio: 'inherit', shell: process.platform === 'win32' }
+      );
+  if ((res.status ?? 1) !== 0) {
+    process.exit(res.status ?? 1);
   }
+}
+
+async function buildWorkboxServiceWorker() {
+  if (!fs.existsSync(DIST_BROWSER_DIR)) return;
   const { count, size, warnings } = await generateSW({
     globDirectory: DIST_BROWSER_DIR,
     globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest}'],
-    globIgnores: ['sw.js', 'workbox-*.js', '**/*.map'],
+    globIgnores: ['sw.js', 'workbox-*.js', 'widget.js', '**/*.map'],
     swDest: path.join(DIST_BROWSER_DIR, 'sw.js'),
     maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
     clientsClaim: true,
@@ -40,22 +52,8 @@ async function buildWorkboxServiceWorker() {
     cleanupOutdatedCaches: true,
     sourcemap: false,
     navigateFallback: '/index.html',
-    navigateFallbackDenylist: [/^\/api\//],
+    navigateFallbackDenylist: [/^\/api\//, /^\/widget\.js$/],
     runtimeCaching: [
-      {
-        urlPattern: ({ url }) => url.pathname.startsWith('/offline-audits/'),
-        handler: 'CacheFirst',
-        options: {
-          cacheName: 'fresnel-saved-audits-offline-v1',
-          expiration: {
-            maxEntries: 120,
-            maxAgeSeconds: 60 * 60 * 24 * 90
-          },
-          cacheableResponse: {
-            statuses: [0, 200]
-          }
-        }
-      },
       {
         urlPattern: ({ url, request }) =>
           request.method === 'GET' && url.pathname.startsWith('/api/audit/'),
@@ -63,41 +61,17 @@ async function buildWorkboxServiceWorker() {
         options: {
           cacheName: 'fresnel-audit-reports-api-v1',
           networkTimeoutSeconds: 4,
-          expiration: {
-            maxEntries: 60,
-            maxAgeSeconds: 60 * 60 * 24 * 30
-          },
-          cacheableResponse: {
-            statuses: [0, 200]
-          }
+          expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+          cacheableResponse: { statuses: [0, 200] }
         }
       },
       {
-        urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+        urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
         handler: 'CacheFirst',
         options: {
           cacheName: 'google-fonts-cache',
-          expiration: {
-            maxEntries: 10,
-            maxAgeSeconds: 60 * 60 * 24 * 365
-          },
-          cacheableResponse: {
-            statuses: [0, 200]
-          }
-        }
-      },
-      {
-        urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-        handler: 'CacheFirst',
-        options: {
-          cacheName: 'gstatic-fonts-cache',
-          expiration: {
-            maxEntries: 10,
-            maxAgeSeconds: 60 * 60 * 24 * 365
-          },
-          cacheableResponse: {
-            statuses: [0, 200]
-          }
+          expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+          cacheableResponse: { statuses: [0, 200] }
         }
       }
     ]
@@ -106,65 +80,20 @@ async function buildWorkboxServiceWorker() {
   if (warnings.length > 0) {
     console.warn('[Workbox] Build warnings:', warnings.join('\n'));
   }
-  console.log(
-    `[Workbox] Generated sw.js precaching ${count} assets (${Math.round(size / 1024)} KB) for offline Saved Audits support.`
-  );
+  console.log(`[Workbox] Generated sw.js precaching ${count} assets (${Math.round(size / 1024)} KB).`);
 }
 
 async function buildApp() {
-  const angularJsonPath = path.join(ROOT_DIR, 'angular.json');
-  const angularConfig = JSON.parse(fs.readFileSync(angularJsonPath, 'utf-8'));
+  // 1. Build React + TanStack Router SPA -> dist/fresnel/browser/
+  runVite(['build']);
 
-  // Temporarily omit outputMode during ng build so @angular-devkit/build-angular:application
-  // builds dist/fresnel/browser without requiring @angular/ssr, then restore outputMode: "server"
-  // in finally so AI Studio's archive handler packages the full-stack server bundle (app.tar.gz).
-  const cliConfig = structuredClone(angularConfig);
-  if (cliConfig?.projects?.fresnel?.architect?.build?.options) {
-    delete cliConfig.projects.fresnel.architect.build.options.outputMode;
-  }
+  // 2. Build zero-dependency embeddable widget -> dist/fresnel/browser/widget.js
+  runVite(['build', '--config', 'vite.embed.config.ts']);
 
-  fs.writeFileSync(angularJsonPath, JSON.stringify(cliConfig, null, 2) + '\n', 'utf-8');
-
-  let buildStatus = 0;
-  try {
-    const ngBin = path.join(ROOT_DIR, 'node_modules', '.bin', 'ng');
-    const res = spawnSync(ngBin, ['build'], {
-      cwd: ROOT_DIR,
-      stdio: 'inherit'
-    });
-    buildStatus = res.status ?? 1;
-  } finally {
-    if (angularConfig?.projects?.fresnel?.architect?.build?.options) {
-      angularConfig.projects.fresnel.architect.build.options.outputMode = 'server';
-    }
-    fs.writeFileSync(angularJsonPath, JSON.stringify(angularConfig, null, 2) + '\n', 'utf-8');
-  }
-
-  if (buildStatus !== 0) {
-    process.exit(buildStatus);
-  }
-
-  // Generate Workbox offline service worker into dist/fresnel/browser/sw.js
+  // 3. Generate offline Service Worker
   await buildWorkboxServiceWorker();
 
-  // Persist phantom-gdemo-1 non-secret runtime configuration into server/runtime-env.json.
-  // Secrets (GEMINI_API_KEY) are never written to disk; the server reads them from process.env only.
-  const runtimeEnvPayload = {
-    GCP_PROJECT: 'phantom-gdemo-1',
-    GCP_PROJECT_NUMBER: '20833501260',
-    GCP_LOCATION: 'global',
-    FRESNEL_GCP_PROJECT: 'phantom-gdemo-1',
-    MANAGED_AGENT: 'antigravity-preview-09-2026',
-    MODEL: 'gemini-4-argon',
-    FALLBACK_MODEL: 'gemini-3.8-flash'
-  };
-  fs.writeFileSync(
-    path.join(ROOT_DIR, 'server', 'runtime-env.json'),
-    JSON.stringify(runtimeEnvPayload, null, 2) + '\n',
-    'utf-8'
-  );
-
-  // Copy backend server/, agent/, public/, server.ts, and metadata.json into dist/fresnel/
+  // 4. Copy backend server/, agent/, public/, and root runtime files into dist/fresnel/
   fs.mkdirSync(DIST_SERVER_DIR, { recursive: true });
   copyDirRecursive(path.join(ROOT_DIR, 'server'), DIST_SERVER_DIR);
   copyDirRecursive(path.join(ROOT_DIR, 'agent'), path.join(DIST_DIR, 'agent'));
@@ -177,7 +106,6 @@ async function buildApp() {
     }
   }
 
-  // Create dist/fresnel/server/server.mjs entrypoint expected by AI Studio full-stack Angular deployment
   const serverMjsContent = `import { startFresnelServer, resolvePortAndHost } from './index.js';
 
 const { port, host } = resolvePortAndHost();

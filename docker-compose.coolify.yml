@@ -1,0 +1,33 @@
+services:
+  fresnel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SITEONE_VERSION: v2.5.1
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      CHROME_PATH: /usr/bin/chromium
+      SITEONE_BIN_PATH: /usr/local/bin/siteone-crawler
+      FRESNEL_AUTH_DATA_DIR: /data/fresnel
+      JWT_SECRET: ${JWT_SECRET:?Set a 32+ char JWT_SECRET in Coolify}
+      FRESNEL_CORS_ORIGINS: ${FRESNEL_CORS_ORIGINS:-}
+      PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - fresnel_data:/data/fresnel
+    ports:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  fresnel_data:

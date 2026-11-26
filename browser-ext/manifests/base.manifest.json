@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Fresnel Live Tab Auditor",
+  "version": "2.0.0",
+  "description": "Audit any open or logged-in browser tab for WCAG accessibility, Core Web Vitals, SEO, GEO, and security hygiene, then open directly in Fresnel.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_title": "Fresnel Live Tab Auditor",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "192": "icons/pwa-192x192.png"
+    }
+  },
+  "icons": {
+    "192": "icons/pwa-192x192.png",
+    "512": "icons/pwa-512x512.png"
+  }
+}
