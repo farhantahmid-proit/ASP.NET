@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as AuditAuditIdRouteImport } from './routes/audit/$auditId'
 import { Route as WidgetPublicKeyRouteImport } from './routes/widget/$publicKey'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const SignInRoute = SignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuditAuditIdRoute = AuditAuditIdRouteImport.update({
+  id: '/audit/$auditId',
+  path: '/audit/$auditId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WidgetPublicKeyRoute = WidgetPublicKeyRouteImport.update({
   id: '/widget/$publicKey',
   path: '/widget/$publicKey',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
+  '/audit/$auditId': typeof AuditAuditIdRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
+  '/audit/$auditId': typeof AuditAuditIdRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRoutesById {
@@ -61,20 +69,33 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
+  '/audit/$auditId': typeof AuditAuditIdRoute
   '/widget/$publicKey': typeof WidgetPublicKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/dashboard' | '/register' | '/sign-in' | '/widget/$publicKey'
+    | '/'
+    | '/dashboard'
+    | '/register'
+    | '/sign-in'
+    | '/audit/$auditId'
+    | '/widget/$publicKey'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/register' | '/sign-in' | '/widget/$publicKey'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/register'
+    | '/sign-in'
+    | '/audit/$auditId'
+    | '/widget/$publicKey'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/register'
     | '/sign-in'
+    | '/audit/$auditId'
     | '/widget/$publicKey'
   fileRoutesById: FileRoutesById
 }
@@ -83,6 +104,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   RegisterRoute: typeof RegisterRoute
   SignInRoute: typeof SignInRoute
+  AuditAuditIdRoute: typeof AuditAuditIdRoute
   WidgetPublicKeyRoute: typeof WidgetPublicKeyRoute
 }
 
@@ -116,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/audit/$auditId': {
+      id: '/audit/$auditId'
+      path: '/audit/$auditId'
+      fullPath: '/audit/$auditId'
+      preLoaderRoute: typeof AuditAuditIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/widget/$publicKey': {
       id: '/widget/$publicKey'
       path: '/widget/$publicKey'
@@ -131,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   RegisterRoute: RegisterRoute,
   SignInRoute: SignInRoute,
+  AuditAuditIdRoute: AuditAuditIdRoute,
   WidgetPublicKeyRoute: WidgetPublicKeyRoute,
 }
 export const routeTree = rootRouteImport
