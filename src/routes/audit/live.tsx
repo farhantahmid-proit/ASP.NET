@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BusinessUrlAudit } from '@/components/live-audit/BusinessUrlAudit'
 import { LiveAuditSuite } from '@/components/live-audit/LiveAuditSuite'
+import { AllInOneSiteAuditPanel } from '@/components/site-audit/AllInOneSiteAuditPanel'
 import type { LocalSavedAuditRecord } from '@/types/audit'
 
 export interface LiveAuditSearch {
@@ -22,7 +23,7 @@ export const Route = createFileRoute('/audit/live')({
 function LiveAuditPage() {
   const { targetUrl = '', source } = Route.useSearch()
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'suite' | 'business'>('suite')
+  const [mode, setMode] = useState<'all-in-one' | 'suite' | 'business'>('all-in-one')
 
   function handleOpenSavedAudit(record: LocalSavedAuditRecord) {
     void navigate({
@@ -38,15 +39,24 @@ function LiveAuditPage() {
           <p className="fr-eyebrow">
             <span className="fr-eyebrow-line" /> LIVE WEBSITE &amp; BROWSER AUDITING
           </p>
-          <h1 className="fr-audit-title">Live URL &amp; Accessibility Audit Suite</h1>
+          <h1 className="fr-audit-title">All-in-One Site Audit &amp; Live Suite</h1>
           <p className="fr-muted">
-            Evaluate public websites with PageSpeed Insights, run live DOM <code>axe-core</code>{' '}
-            WCAG scans, track real-time <code>web-vitals</code>, or launch a 10-tool business audit.
+            Run SSRF-safe DNS, TLS, Security Headers, SiteOne Crawl, Threat Intel, Prompt
+            Security, PageSpeed Insights, and DOM <code>axe-core</code> checks.
             {source ? ` (Launched via ${source})` : ''}
           </p>
         </div>
 
         <div className="fr-segmented" role="tablist" aria-label="Live audit mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'all-in-one'}
+            className={`fr-segmented__btn${mode === 'all-in-one' ? ' is-active' : ''}`}
+            onClick={() => setMode('all-in-one')}
+          >
+            All-in-One Site Audit
+          </button>
           <button
             type="button"
             role="tab"
@@ -68,7 +78,13 @@ function LiveAuditPage() {
         </div>
       </header>
 
-      {mode === 'suite' ? (
+      {mode === 'all-in-one' ? (
+        <AllInOneSiteAuditPanel
+          initialUrl={targetUrl}
+          source={source || 'web'}
+          onOpenSavedAudit={handleOpenSavedAudit}
+        />
+      ) : mode === 'suite' ? (
         <LiveAuditSuite initialUrl={targetUrl} onOpenSavedAudit={handleOpenSavedAudit} />
       ) : (
         <BusinessUrlAudit initialUrl={targetUrl} onOpenSavedAudit={handleOpenSavedAudit} />

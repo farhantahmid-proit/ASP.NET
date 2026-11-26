@@ -19,6 +19,13 @@ import {
 import { executeOssStaticAudit, executeOssLhrAudit } from './oss-engine/audit-orchestrator.js';
 import { detectChromiumAvailability, runLiveLighthouseAudit } from './oss-engine/lighthouse-runner.js';
 import { runPageSpeedInsightsAudit } from './oss-engine/pagespeed-runner.js';
+import { serializeSiteCrawlToCsv } from './oss-engine/siteone-runner.js';
+import {
+  getSiteAuditSession,
+  getSiteAuditSessionRaw,
+  runQuickWidgetSiteAudit,
+  startSiteAuditSession
+} from './oss-engine/site-audit-orchestrator.js';
 import { fetchOssWebStandardsGrounding } from './oss-engine/standards-registry.js';
 import {
   detectGithubSshReadiness,
@@ -201,6 +208,12 @@ function sendJson(res, statusCode, payload) {
   res.end(body);
 }
 
+function resolveClientIp(req) {
+  const xffParts = String(req.headers?.['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const xff = xffParts.length >= 2 ? xffParts[xffParts.length - 2] : (xffParts[0] || '');
+  return xff || req.socket?.remoteAddress || 'unknown';
+}
+
 function resolveAuditClientId(req, url) {
   const hdr = req.headers?.['x-client-id'];
   if (typeof hdr === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(hdr.trim())) {
@@ -210,10 +223,7 @@ function resolveAuditClientId(req, url) {
   if (typeof cidParam === 'string' && /^[a-zA-Z0-9_-]{8,128}$/.test(cidParam.trim())) {
     return `cid:${cidParam.trim()}`;
   }
-  const xffParts = String(req.headers?.['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const xff = xffParts.length >= 2 ? xffParts[xffParts.length - 2] : (xffParts[0] || '');
-  const ip = xff || req.socket?.remoteAddress || 'unknown';
-  return `ip:${ip}`;
+  return `ip:${resolveClientIp(req)}`;
 }
 
 function readJsonBody(req) {
@@ -451,6 +461,40 @@ export async function handleFresnelApiRequest(req, res) {
       return true;
     }
     sendJson(res, 200, found);
+    return true;
+  }
+
+  const widgetAuditMatch = pathname.match(/^\/api\/widget\/([^/]+)\/audit$/);
+  if (req.method === 'POST' && widgetAuditMatch) {
+    const publicKey = decodeURIComponent(widgetAuditMatch[1]);
+    const found = findWidgetByPublicKey(publicKey);
+    if (!found) {
+      sendJson(res, 404, { detail: 'Widget key not found.', error: 'Widget key not found.' });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+      return true;
+    }
+    try {
+      const result = await runQuickWidgetSiteAudit({
+        targetUrl: String(body?.targetUrl || ''),
+        publicKey,
+        workspaceName: found.workspace.name,
+        clientIp: resolveClientIp(req)
+      });
+      sendJson(res, 200, result);
+    } catch (err) {
+      const status = Number(err?.statusCode) || 400;
+      const message = err?.message || 'Unable to audit the target URL.';
+      if (status === 429 && err?.retryAfterSec) {
+        res.setHeader('Retry-After', String(err.retryAfterSec));
+      }
+      sendJson(res, status, { detail: message, error: message });
+    }
     return true;
   }
 
@@ -895,6 +939,116 @@ export async function handleFresnelApiRequest(req, res) {
       source: isDemoRepo ? 'sandbox-live' : 'github-fallback',
       issues: fallbackIssues
     });
+    return true;
+  }
+
+  // 1d. All-in-One Site Audit Endpoints (/api/audit/site/*)
+  if (req.method === 'POST' && pathname === '/api/audit/site/start') {
+    const clientId = resolveAuditClientId(req, url);
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { detail: 'Invalid JSON request body.', error: 'Invalid JSON request body.' });
+      return true;
+    }
+    try {
+      const sessionState = await startSiteAuditSession({
+        targetUrl: String(body?.targetUrl || ''),
+        clientId,
+        maxUrls: body?.maxUrls,
+        maxDepth: body?.maxDepth,
+        includeCrawl: body?.includeCrawl !== false,
+        includeThreatIntel: body?.includeThreatIntel !== false,
+        source: body?.source || 'web'
+      });
+      sendJson(res, 201, sessionState);
+    } catch (err) {
+      const message = err?.message || 'Enter a valid public http:// or https:// URL.';
+      sendJson(res, 400, { detail: message, error: message });
+    }
+    return true;
+  }
+
+  const siteStatusMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/status$/);
+  if (req.method === 'GET' && siteStatusMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const sessionState = getSiteAuditSession(siteStatusMatch[1], clientId);
+    if (!sessionState) {
+      sendJson(res, 404, { detail: 'Site audit session not found.', error: 'Site audit session not found.' });
+      return true;
+    }
+    sendJson(res, 200, sessionState);
+    return true;
+  }
+
+  const siteStreamMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/stream$/);
+  if (req.method === 'GET' && siteStreamMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const session = getSiteAuditSessionRaw(siteStreamMatch[1], clientId);
+    if (!session) {
+      sendJson(res, 404, { detail: 'Site audit session not found.', error: 'Site audit session not found.' });
+      return true;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+
+    const initial = getSiteAuditSession(session.id, clientId);
+    res.write(`event: state\ndata: ${JSON.stringify(initial)}\n\n`);
+
+    if (initial.status === 'completed' || initial.status === 'failed') {
+      res.write(`event: completed\ndata: ${JSON.stringify({ sessionId: session.id, session: initial })}\n\n`);
+      res.end();
+      return true;
+    }
+
+    if (!session.sseListeners) session.sseListeners = new Set();
+    session.sseListeners.add(res);
+
+    const keepalive = setInterval(() => {
+      try {
+        res.write(': keepalive\n\n');
+      } catch {
+        clearInterval(keepalive);
+        session.sseListeners.delete(res);
+      }
+    }, 15000);
+
+    req.on('close', () => {
+      clearInterval(keepalive);
+      session.sseListeners.delete(res);
+    });
+    return true;
+  }
+
+  const siteCsvMatch = pathname.match(/^\/api\/audit\/site\/([^/]+)\/export\.csv$/);
+  if (req.method === 'GET' && siteCsvMatch) {
+    const clientId = resolveAuditClientId(req, url);
+    const session = getSiteAuditSessionRaw(siteCsvMatch[1], clientId);
+    if (!session) {
+      res.writeHead(404);
+      res.end('Site audit session not found');
+      return true;
+    }
+    let hostSlug = 'site';
+    try {
+      hostSlug = new URL(session.targetUrl).hostname.replace(/[^a-zA-Z0-9.-]/g, '-');
+    } catch {
+      // Keep default slug
+    }
+    const csvContent = serializeSiteCrawlToCsv(session.siteCrawl);
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': `attachment; filename="fresnel-site-crawl-${hostSlug}.csv"`,
+      'Cache-Control': 'private, no-store'
+    });
+    res.end(csvContent);
     return true;
   }
 

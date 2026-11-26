@@ -426,3 +426,90 @@ export async function fetchOssWebStandardsGrounding(session, customQuery = '') {
 
   return result;
 }
+
+/**
+ * Curated WordPress Audit Checklist codified from aurooba/wpaudit.site (MIT)
+ * covering Performance, Security, SEO/Metadata, Accessibility, and Maintenance hygiene.
+ */
+export const WORDPRESS_AUDIT_CHECKLIST = [
+  {
+    id: 'wp-sec-user-enum',
+    category: 'Security',
+    title: 'Disable public REST user enumeration (/wp-json/wp/v2/users)',
+    checkType: 'automated',
+    guidance:
+      'Restrict unauthenticated access to /wp-json/wp/v2/users and ?author=N queries so attacker bots cannot harvest admin usernames.'
+  },
+  {
+    id: 'wp-sec-xmlrpc',
+    category: 'Security',
+    title: 'Disable or rate-limit xmlrpc.php',
+    checkType: 'automated',
+    guidance:
+      'Block xmlrpc.php at the web server or WAF layer unless Jetpack or legacy mobile XML-RPC clients explicitly depend on it.'
+  },
+  {
+    id: 'wp-sec-readme',
+    category: 'Security',
+    title: 'Remove core version disclosure files (/readme.html & generator meta)',
+    checkType: 'automated',
+    guidance:
+      'Strip <meta name="generator" content="WordPress ..."> and restrict /readme.html so exact patch versions are not advertised.'
+  },
+  {
+    id: 'wp-sec-file-edit',
+    category: 'Security',
+    title: 'Disable built-in theme/plugin file editor (DISALLOW_FILE_EDIT)',
+    checkType: 'manual',
+    guidance:
+      'Set define("DISALLOW_FILE_EDIT", true) in wp-config.php and enforce 2FA on all administrator accounts.'
+  },
+  {
+    id: 'wp-perf-page-cache',
+    category: 'Performance',
+    title: 'Full-page caching & persistent object cache active',
+    checkType: 'manual',
+    guidance:
+      'Serve cached HTML for anonymous visitors via edge CDN or NGINX FastCGI cache and pair with Redis object caching.'
+  },
+  {
+    id: 'wp-perf-assets',
+    category: 'Performance',
+    title: 'Dequeue unused plugin CSS/JS & convert hero images to WebP/AVIF',
+    checkType: 'automated',
+    guidance:
+      'Dequeue unused block-library/plugin styles on landing routes and optimize wp-content/uploads imagery with explicit width/height attributes.'
+  },
+  {
+    id: 'wp-seo-permalinks',
+    category: 'SEO/Metadata',
+    title: 'Pretty permalinks, XML sitemap, and canonical tags configured',
+    checkType: 'automated',
+    guidance:
+      'Verify /wp-sitemap.xml or SEO plugin sitemap is indexed and every post emits a self-referencing rel="canonical" link.'
+  },
+  {
+    id: 'wp-a11y-theme',
+    category: 'Accessibility',
+    title: 'Skip link, focus-visible styling & accessible navigation menus',
+    checkType: 'manual',
+    guidance:
+      'Test dropdown submenus and modal toggles with keyboard-only navigation and ensure WCAG 2.2 AA contrast across theme tokens.'
+  },
+  {
+    id: 'wp-maint-backups',
+    category: 'Maintenance',
+    title: 'Automated off-site backups & minor core auto-updates verified',
+    checkType: 'manual',
+    guidance:
+      'Confirm scheduled encrypted database + wp-content backups have been restore-tested within the last 30 days.'
+  },
+  {
+    id: 'wp-maint-plugins',
+    category: 'Maintenance',
+    title: 'Prune inactive plugins/themes and verify PHP 8.2+ compatibility',
+    checkType: 'manual',
+    guidance:
+      'Delete deactivated plugins/themes completely from wp-content/ and verify WP_DEBUG_DISPLAY is disabled in production.'
+  }
+];
