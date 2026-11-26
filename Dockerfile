@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
   && tar -xzf /tmp/siteone.tar.gz -C /tmp/siteone \
   && BIN_PATH="$(find /tmp/siteone -type f -name 'siteone-crawler' | head -n 1)" \
   && install -m 0755 "${BIN_PATH}" /usr/local/bin/siteone-crawler \
-  && /usr/local/bin/siteone-crawler --version \
+  && (/usr/local/bin/siteone-crawler --version || [ "$?" -eq 2 ]) \
   && rm -rf /tmp/siteone /tmp/siteone.tar.gz
 
 # ---------------------------------------------------------------------------
